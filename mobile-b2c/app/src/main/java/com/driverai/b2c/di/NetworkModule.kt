@@ -3,6 +3,7 @@ package com.driverai.b2c.di
 import com.driverai.b2c.BuildConfig
 import com.driverai.b2c.data.network.ApiService
 import com.driverai.b2c.data.network.AuthInterceptor
+import com.driverai.b2c.data.network.VehicleApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,4 +45,9 @@ object NetworkModule {
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService =
         retrofit.create(ApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideVehicleApiService(retrofit: Retrofit): VehicleApiService =
+        retrofit.create(VehicleApiService::class.java)
 }

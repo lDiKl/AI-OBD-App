@@ -14,9 +14,11 @@
 | Компонент | Статус |
 |-----------|--------|
 | Monorepo scaffold | ✅ Готово (commit a4f4c62) |
-| mobile-b2c — OBD Bluetooth слой | ✅ Готово, приложение запускается |
+| mobile-b2c — OBD Bluetooth слой | ✅ Готово |
+| mobile-b2c — Firebase Auth + Navigation | ✅ Готово, вход/выход работает |
 | mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
-| backend/ | ✅ Phase 1 готов, работает в Docker |
+| backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
+| backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
 | web/ | ⬜ Не начато |
 
 ---
@@ -95,19 +97,24 @@
 
 ### 2.2 Firebase Auth в mobile-b2c
 
-- [ ] Добавить `google-services.json` (получить из Firebase Console)
-- [ ] Раскомментировать Firebase в `app/build.gradle.kts`
-- [ ] `FirebaseAuthRepository` — login, logout, getIdToken
-- [ ] Экран Login: email/password + Google Sign-In кнопка
-- [ ] `AuthViewModel` + сохранение ID токена в DataStore
-- [ ] Автоматическое добавление `Authorization: Bearer {token}` в Retrofit interceptor
+- [x] Добавить `google-services.json` (получить из Firebase Console)
+- [x] Раскомментировать Firebase в `app/build.gradle.kts`
+- [x] `FirebaseAuthRepository` — login, logout, getIdToken
+- [x] Экран Login: email/password форма + переключение Login↔Register
+- [x] `AuthViewModel` — signIn, register, AuthState sealed class
+- [x] `AuthInterceptor` — автоматическое добавление `Authorization: Bearer {token}` в Retrofit
+- [x] `NetworkModule` — Hilt: OkHttpClient + Retrofit + ApiService
+- [x] `AppNavHost` — навигация Login → Scanner (автологин если сессия активна)
+- [x] Кнопка Sign Out в TopAppBar ScannerScreen
 
 ### 2.3 Vehicle Management в mobile-b2c
 
-- [ ] Room entity `VehicleEntity` + DAO + Repository
-- [ ] Retrofit `VehicleApiService` → `POST/GET /api/v1/b2c/vehicles`
-- [ ] `VehicleViewModel` — список авто, добавление, удаление
-- [ ] Экран "Добавить автомобиль" (make, model, year, engine)
+- [x] Room entity `VehicleEntity` + DAO + `AppDatabase` + `DatabaseModule`
+- [x] Retrofit `VehicleApiService` → `POST/GET/DELETE /api/v1/b2c/vehicles`
+- [x] `VehicleRepository` — Room как source of truth, sync с backend
+- [x] `VehicleViewModel` — список авто, добавление, удаление, sync
+- [x] `VehicleScreen` — LazyColumn + FAB + диалог добавления (make/model/year/engine/mileage/VIN)
+- [x] `AppNavHost` — BottomNavigationBar: Scanner | My Cars
 
 ### 2.4 OBD Scan → Backend
 
@@ -295,4 +302,4 @@
 ---
 
 *Последнее обновление: 2026-03-02*
-*Текущий фокус: Фаза 1 — Backend Foundation*
+*Текущий фокус: Фаза 2.4 — OBD Scan → Backend*
