@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
-    // alias(libs.plugins.google.services) // TODO: add google-services.json from Firebase Console
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -74,9 +74,9 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // Firebase — раскомментировать после добавления google-services.json
-    // implementation(platform(libs.firebase.bom))
-    // implementation(libs.firebase.auth)
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
 
     // Coroutines
     implementation(libs.coroutines.android)
