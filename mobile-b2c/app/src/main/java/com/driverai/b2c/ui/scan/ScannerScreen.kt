@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -30,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,7 +55,10 @@ import com.driverai.b2c.viewmodel.ScannerViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
+fun ScannerScreen(
+    onSignOut: () -> Unit = {},
+    viewModel: ScannerViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsState()
 
     // Permission launcher for BLUETOOTH_CONNECT (required on API 31+)
@@ -66,7 +71,14 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("OBD Scanner") })
+            TopAppBar(
+                title = { Text("OBD Scanner") },
+                actions = {
+                    IconButton(onClick = onSignOut) {
+                        Icon(Icons.Default.Logout, contentDescription = "Sign out")
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Box(
