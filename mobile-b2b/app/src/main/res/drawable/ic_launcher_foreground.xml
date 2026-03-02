@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Wrench icon for mechanic/shop app -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,24 C64,24 58,30 58,38 C58,40 58.5,42 59.5,43.5 L30,73 C28,75 28,78 30,80 L36,86 C38,88 41,88 43,86 L72.5,56.5 C74,57.5 76,58 78,58 C86,58 92,52 92,44 C92,42 91.5,40 90.5,38.5 L82,47 L75,40 L83.5,31.5 C82,30.5 80,30 78,30 C74,30 70.7,32.3 69,36 Z" />
+</vector>

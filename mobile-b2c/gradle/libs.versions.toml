@@ -1,11 +1,12 @@
 [versions]
-agp = "8.5.0"
-kotlin = "2.0.0"
+agp = "9.0.1"
+kotlin = "2.2.10"
+ksp = "2.3.2"
 coreKtx = "1.13.1"
 lifecycle = "2.8.4"
 activityCompose = "1.9.1"
 composeBom = "2024.08.00"
-hilt = "2.51.1"
+hilt = "2.59.2"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 room = "2.6.1"
@@ -26,6 +27,7 @@ androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version = "2.7.7" }
 
 # DI
@@ -54,5 +56,6 @@ coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutin
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
