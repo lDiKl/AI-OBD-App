@@ -1,1304 +1,298 @@
-# Development Plan — AI OBD Ecosystem
+# AI OBD App — Implementation Plan
 
-## Параллельная разработка двух приложений
-
----
-
-## Ключевое улучшение исходной стратегии
-
-Оригинальный план (из Production Strategy) говорит:
-
-> "After reaching 5,000+ active users → Launch B2B version"
-
-Это значит: **сначала полностью B2C, потом с нуля B2B** — потеря времени и двойная работа.
-
-**Улучшение:** Разделить *разработку* и *запуск*.
-
-- **Разрабатывать оба приложения параллельно** — на общей инфраструктуре
-- **Запускать публично** в правильной последовательности (B2C → B2B)
-- **B2B тестировать приватно** с 3–5 пилотными сервисами ещё в период B2C бета
-
-Это даёт:
-
-- Общий backend строится один раз, правильно, сразу
-- B2B не разрабатывается с нуля после B2C — он уже готов
-- К моменту публичного запуска B2B уже проверен реальными механиками
-- Пилотные сервисы дают данные и testimonials для маркетинга
+> **Как пользоваться:**
+> - `[ ]` — не начато | `[x]` — готово | `[-]` — в процессе
+> - Каждый этап начинаем только после завершения предыдущего milestone
+> - Детали архитектуры, AI стратегии, DB схемы — в [architecture.md](architecture.md)
+> - API контракт (все endpoints) — в [api_contract.md](api_contract.md)
+> - LLM промпты — в [prompts.md](prompts.md)
 
 ---
 
-## Структура параллельной разработки
+## Текущий статус
 
-```
-           SHARED INFRASTRUCTURE
-           ┌─────────────────────────────────────┐
-           │ Auth · DB · DTC Database · AI Layer │
-           └──────────────┬──────────────────────┘
-                          │
-          ┌───────────────┴────────────────────────┐
-          ▼                                      ▼
-     B2C Mobile App               B2B (Android + Web SaaS)
-     (Kotlin / Android)           ├── Android App (механики, OBD)
-          │                       └── Web Dashboard (сервис, офис)
-          │                                      │
-          │    Разрабатываются параллельно        │
-          │    Запускаются последовательно        │
-          ▼                                      ▼
-     Публичный запуск          Приватная альфа → Публичный запуск
-```
+| Компонент | Статус |
+|-----------|--------|
+| Monorepo scaffold | ✅ Готово (commit a4f4c62) |
+| mobile-b2c — OBD Bluetooth слой | ✅ Готово, приложение запускается |
+| mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
+| backend/ | ✅ Phase 1 готов, работает в Docker |
+| web/ | ⬜ Не начато |
 
 ---
 
-## Структура приложений и связи между ними
+## Фаза 1 — Backend Foundation
+
+> **Milestone:** `curl -X POST /api/v1/b2c/scan/analyze -d '{"dtc_codes":["P0420"]}'`
+> возвращает `severity + can_drive + cost_range` без AI, только Rule Engine
+
+### 1.1 Проект и инфраструктура
+
+- [x] Структура папок `backend/` (routers/, services/, models/, db/, core/, tests/)
+- [x] `pyproject.toml` — зависимости: fastapi, uvicorn, sqlalchemy[asyncio], alembic, asyncpg, pydantic, redis, python-dotenv, firebase-admin, anthropic
+- [x] `docker-compose.yml` — PostgreSQL 16 + Redis локально
+- [x] `.env.example` — шаблон переменных (DATABASE_URL, REDIS_URL, FIREBASE_*, ANTHROPIC_API_KEY)
+- [x] `Makefile` — команды: `make dev`, `make migrate`, `make seed`, `make test`
+- [x] FastAPI app factory `core/app.py` + `main.py`
+
+### 1.2 База данных
+
+- [x] Alembic init + `alembic.ini`
+- [x] Миграция 0001: все основные таблицы (error_codes, repair_cost_estimates, users, vehicles, scan_sessions, error_occurrences)
+- [ ] Миграция 0002: таблицы `shops`, `shop_users`, `diagnostic_cases` (Phase 3, B2B)
+- [ ] Миграция 0003: таблицы `service_leads`, `shop_quotes` (Phase 4, Integration)
+- [x] Seeding: скрипт `scripts/seed_dtc.py` — загрузить `docs/dtc_codes.csv` в `error_codes`
+- [ ] Seeding: базовые `repair_cost_estimates` для топ-100 кодов по регионам (EU, UA)
+
+### 1.3 Firebase Auth middleware
+
+- [x] `core/security.py` — инициализация Firebase Admin SDK
+- [x] Dependency `get_current_user(token)` — верификация Bearer токена → возвращает User из БД (auto-provision при первом входе)
+- [x] `POST /api/v1/auth/verify` — создать/найти запись в `users` при первом входе
+- [ ] Тест: верный токен → 200, неверный → 401
+
+### 1.4 Rule Engine
+
+- [x] `services/ai/rule_engine.py` — `evaluate_code()`, `evaluate_session()`
+- [x] Severity overrides для критических кодов (P0300 misfire, C0035 ABS, etc.)
+- [x] System-based severity defaults (brakes=high, engine=medium, body=low)
+- [ ] `get_cost_range(code, region)` — из таблицы `repair_cost_estimates` (после seeding данных)
+- [ ] Тесты: P0420 → severity=medium, P0300 → severity=critical
+
+### 1.5 B2C Scan endpoint (без AI)
+
+- [x] Pydantic схемы: `ScanAnalyzeRequest`, `ScanAnalyzeResponse`, `CodeResult`, `CodeResultFree`
+- [x] `POST /api/v1/b2c/scan/analyze` — Rule Engine + DB lookup, создаёт `scan_session` + `error_occurrences`
+- [ ] `GET /api/v1/b2c/scan/sessions` — список с пагинацией
+- [ ] `GET /api/v1/b2c/scan/sessions/{id}` — детали сессии
+- [x] `GET /api/v1/shared/dtc/{code}` — справочник кода
+- [x] `GET /api/v1/shared/dtc/search?q=...` — поиск кодов
+
+### 1.6 Vehicles CRUD
+
+- [x] `POST /api/v1/b2c/vehicles` — добавить авто
+- [x] `GET /api/v1/b2c/vehicles` — список авто пользователя
+- [x] `PUT /api/v1/b2c/vehicles/{id}` — обновить
+- [x] `DELETE /api/v1/b2c/vehicles/{id}` — удалить
+
+**✅ Milestone 1 достигнут, когда:** POST /analyze с кодами возвращает Rule Engine результат
 
 ---
 
-### B2C — AI OBD Diagnostic Assistant (Mobile)
+## Фаза 2 — B2C Mobile + AI Backend
 
-> **Платформа:** Android (Kotlin), нативное приложение.
-> iOS — возможное расширение в будущем (Kotlin Multiplatform или отдельный Swift проект).
+> **Milestone:** Телефон → OBD сканирование → API → AI объяснение на экране
 
-#### Слои приложения
+### 2.1 AI Layer на бэкенде
 
-```
-┌─────────────────────────────────────────────┐
-│                  UI Layer                   │  Jetpack Compose / XML layouts
-├─────────────────────────────────────────────┤
-│              Business Logic Layer           │  ViewModel, UseCases (MVVM/MVI)
-├─────────────────────────────────────────────┤
-│                Data Layer                   │  Repository pattern, Room (local) + Retrofit (API)
-├─────────────────────────────────────────────┤
-│           OBD Connection Layer              │  Bluetooth ELM327 (Classic BT / BLE)
-└─────────────────────────────────────────────┘
-```
+- [x] `services/ai/ai_service.py` — `explain_code_b2c()` + `B2CCodeContext`
+- [x] Промпт из `docs/prompts.md` (B2C prompt #1 — plain language explanation)
+- [x] Redis кэш: md5(`b2c:{code}:{make}:{year}:{region}:{lang}`), TTL = 7 дней
+- [x] `premium` поле заполняется только если `subscription_status == "premium"`
+- [x] Graceful fallback: AI недоступен → Rule Engine результат без ошибки для пользователя
+- [x] Concurrent AI: все коды сессии обрабатываются параллельно через `asyncio.gather`
+- [ ] Тест: P0420 + Toyota Camry 2018 → AI объяснение (нужен ANTHROPIC_API_KEY в .env)
 
-#### Модули и экраны
+### 2.2 Firebase Auth в mobile-b2c
 
-**Onboarding**
+- [ ] Добавить `google-services.json` (получить из Firebase Console)
+- [ ] Раскомментировать Firebase в `app/build.gradle.kts`
+- [ ] `FirebaseAuthRepository` — login, logout, getIdToken
+- [ ] Экран Login: email/password + Google Sign-In кнопка
+- [ ] `AuthViewModel` + сохранение ID токена в DataStore
+- [ ] Автоматическое добавление `Authorization: Bearer {token}` в Retrofit interceptor
 
-- Регистрация / вход (email или Google/Apple)
-- Настройка профиля автомобиля (марка, модель, год, двигатель, VIN)
-- Сопряжение с OBD адаптером (пошаговый wizard)
-- Выбор региона (для расчёта стоимости ремонта)
+### 2.3 Vehicle Management в mobile-b2c
 
-**OBD Scanner**
+- [ ] Room entity `VehicleEntity` + DAO + Repository
+- [ ] Retrofit `VehicleApiService` → `POST/GET /api/v1/b2c/vehicles`
+- [ ] `VehicleViewModel` — список авто, добавление, удаление
+- [ ] Экран "Добавить автомобиль" (make, model, year, engine)
 
-- Экран подключения к адаптеру (статус Bluetooth)
-- Запуск сканирования — чтение всех кодов
-- Отображение freeze frame данных (RPM, температура, нагрузка)
-- Кнопка очистки кодов (платный функционал)
+### 2.4 OBD Scan → Backend
 
-**Diagnostic — список ошибок**
+- [ ] Retrofit `ScanApiService` → `POST /api/v1/b2c/scan/analyze`
+- [ ] Маппер `ObdScanResult` → `ScanRequest` (с vehicle_id, mileage, freeze_frame)
+- [ ] Обновить `ScannerViewModel`: после OBD скана → вызвать API → `ScanState.AnalysisReady`
+- [ ] Экран результатов (новый): severity badge + can_drive + cost range + AI объяснение
+- [ ] Кнопка "Unlock AI explanation" для free tier → переход на экран подписки (заглушка пока)
 
-- Список всех найденных DTC кодов с иконкой severity
-- Фильтрация по системам (двигатель, трансмиссия, тормоза...)
-- Общий Risk Score сессии (Low / Medium / High)
+### 2.5 История сканов
 
-**Diagnostic — детальный экран ошибки**
+- [ ] Room таблица `ScanSessionEntity` + `ErrorOccurrenceEntity`
+- [ ] Синхронизация: при получении результата от API → сохранить в Room
+- [ ] Экран "История" — `LazyColumn` сессий по датам
+- [ ] Экран деталей сессии — все коды + AI объяснения
 
-- Код и краткое название
-- AI объяснение простым языком
-- Возможные причины (ranked by probability)
-- Risk Level: Low / Medium / High
-- Можно ли ехать: Да / Ограниченно / Нет
-- Последствия при игнорировании
-- Диапазон стоимости ремонта (мин–макс, по региону)
-- Средние часы работы механика
-
-**История**
-
-- Список всех сессий сканирования по дате
-- График повторяющихся ошибок
-- Изменение пробега между сессиями
-- Сравнение: "впервые" / "повторная"
-
-**Найти сервис** *(Phase 3+, пока заглушка в MVP)*
-
-- Карта с зарегистрированными партнёрскими сервисами
-- Фильтрация по специализации
-- Отправить диагностический отчёт в сервис
-- Статус отправленного отчёта (получен / просмотрен / отвечено)
-- Входящая смета от механика
-
-**Аккаунт и настройки**
-
-- Управление подпиской (Freemium → Paid)
-- Управление автомобилями (несколько авто)
-- Настройки региона и валюты
-- История платежей
-
-#### Данные, которые хранит B2C
-
-```
-User
- └── Vehicles[]
-      └── ScanSessions[]
-           ├── ErrorOccurrences[]
-           │    ├── ErrorCode (ref → shared DTC DB)
-           │    └── FreezeFrame (json)
-           └── SessionMetadata (mileage, date, duration)
-```
+**✅ Milestone 2 достигнут, когда:** Реальное OBD сканирование → AI объяснение на экране телефона
 
 ---
 
-### B2B — AI Auto Service Assistant (Android + Web SaaS)
+## Фаза 3 — B2B Web MVP
 
-> B2B состоит из **двух клиентских приложений**, которые работают через один общий backend:
-> - **Android App** — для механика в боксе: подключение к OBD, быстрый скан, создание кейса
-> - **Web Dashboard** — для офиса сервиса: полный дашборд, PDF отчёты, сметы, аналитика
+> **Milestone:** Механик вводит P0420 + Toyota Camry 2018 → получает анализ → генерирует PDF отчёт
 
----
+### 3.1 B2B Backend endpoints
 
-### B2B Android — AI Auto Service Mobile (для механиков)
+- [ ] B2B Auth middleware — `ShopUser` вместо `User`, привязка к `shop_id`
+- [ ] `POST /api/v1/b2b/auth/register-shop` — регистрация сервиса
+- [ ] `services/ai_service_b2b.py` — B2B промпт: ranked causes + diagnostic checklist
+- [ ] `POST /api/v1/b2b/diagnostic/analyze` — полный B2B анализ (probable_causes, checklist, labor_hours)
+- [ ] `POST /api/v1/b2b/cases/{id}/report/generate` — AI генерация текста отчёта для клиента
+- [ ] `GET/POST /api/v1/b2b/cases` — создание и список кейсов
+- [ ] `GET/PUT /api/v1/b2b/cases/{id}` — деталb и обновление статуса
 
-> **Платформа:** Android (Kotlin), нативное приложение.
-> Ключевое отличие от B2C: профессиональный интерфейс, работа с несколькими авто за день, полные технические данные.
+### 3.2 PDF генерация
 
-#### Слои приложения
+- [ ] Python библиотека `weasyprint` или `reportlab`
+- [ ] HTML шаблон клиентского отчёта (Jinja2)
+- [ ] HTML шаблон сметы
+- [ ] `GET /api/v1/b2b/cases/{id}/report/pdf` — скачать PDF отчёт
+- [ ] `GET /api/v1/b2b/cases/{id}/estimate/pdf` — скачать PDF смету
 
-```
-┌─────────────────────────────────────────────┐
-│                  UI Layer                   │  Jetpack Compose
-├─────────────────────────────────────────────┤
-│              Business Logic Layer           │  ViewModel, UseCases (MVVM/MVI)
-├─────────────────────────────────────────────┤
-│                Data Layer                   │  Repository, Room (offline), Retrofit
-├─────────────────────────────────────────────┤
-│           OBD Connection Layer              │  Bluetooth ELM327 (Classic BT / BLE)
-└─────────────────────────────────────────────┘
-```
+### 3.3 React проект setup
 
-#### Модули и экраны
+- [ ] `web/` — Vite + React + TypeScript init
+- [ ] Tailwind CSS + shadcn/ui компоненты
+- [ ] TanStack Query — глобальный QueryClient
+- [ ] Firebase Auth JS SDK — login + token refresh
+- [ ] React Router — layout + protected routes
+- [ ] Axios instance с `Authorization: Bearer {token}` interceptor
+- [ ] TypeScript типы из `docs/api_contract.md`
 
-**Авторизация (B2B shop account)**
+### 3.4 Web Auth + Shop Setup
 
-- Вход по email (через Firebase Auth)
-- Привязка к конкретному сервису (shop\_id)
-- Роль: механик / старший механик / менеджер
+- [ ] Страница Login (email + Google)
+- [ ] Страница Register Shop (после первого входа если нет shop)
+- [ ] Auth context + `useCurrentUser` hook
+- [ ] Shop Profile страница (`GET/PUT /api/v1/b2b/shop/profile`)
 
-**OBD Scanner (профессиональный)**
+### 3.5 Web Dashboard — главные страницы
 
-- Подключение к ELM327 адаптеру (Bluetooth)
-- Чтение всех DTC кодов — стандартных и OEM
-- Полные freeze frame данные (все пиды: RPM, MAP, STFT, LTFT, нагрузка, скорость, температуры)
-- Live Data — графики показателей в реальном времени
-- Поддержка нескольких авто за рабочую смену (быстрое переключение)
-- Очистка кодов с подтверждением и записью в лог
+- [ ] Layout: sidebar + header + main content
+- [ ] Dashboard (главная): активные кейсы + кнопка "Новая диагностика"
+- [ ] Страница "Новая диагностика":
+  - [ ] Форма: make/model/year/engine/mileage/vin
+  - [ ] Поле ввода DTC кодов (multiple, comma-separated или список)
+  - [ ] Поле симптомов (textarea)
+  - [ ] Кнопка "Analyze" → вызов `/b2b/diagnostic/analyze`
+  - [ ] Loading state + результат
+- [ ] Страница результатов AI анализа:
+  - [ ] Probable causes (ranked, с % уверенности + reasoning)
+  - [ ] Diagnostic checklist (интерактивный, отметить выполненное)
+  - [ ] Кнопка "Сохранить как кейс"
+  - [ ] Кнопка "Сгенерировать отчёт"
+- [ ] Список кейсов: поиск + фильтр по статусу/коду/модели
+- [ ] Страница кейса: полный анализ + статус + заметки
 
-**Создание кейса из скана**
+### 3.6 Report + Estimate в вебе
 
-- Одна кнопка: "Создать кейс по этому скану"
-- Привязка к клиенту (поиск по номеру авто / VIN / телефону)
-- Добавление симптомов (текст + голосовой ввод)
-- Указание пробега
-- Автоматическая отправка в backend → AI анализ запускается в фоне
+- [ ] Страница генерации отчёта: AI текст + редактор (editable)
+- [ ] Кнопка "Скачать PDF отчёт"
+- [ ] Estimate Builder:
+  - [ ] Добавление запчастей (название, цена, кол-во)
+  - [ ] Labor hours (AI предложение, редактируемое)
+  - [ ] Markup % + итог
+  - [ ] Кнопка "Скачать PDF смету"
+- [ ] `POST /api/v1/b2b/cases/{id}/estimate` — сохранить смету
 
-**AI Анализ (результат на мобильном)**
-
-- Краткая версия анализа для механика (вероятные причины + приоритет)
-- Чеклист диагностических шагов (интерактивный — отмечать прямо на экране)
-- Ссылки на TSB бюллетени для данного кода/модели
-- Предупреждение: "Этот код встречался на этой машине 2 раза ранее"
-- Оценка трудоёмкости (часы)
-
-**Фото и заметки**
-
-- Съёмка фото проблемного узла прямо из приложения
-- Заметки механика (текст + голос)
-- Привязка фото/заметок к конкретному коду в кейсе
-- Всё синхронизируется с кейсом в веб-дашборде
-
-**Клиентская база (быстрый доступ)**
-
-- Поиск клиента по VIN, госномеру, телефону
-- История авто: прошлые кейсы, частые коды, пробег
-- Быстрый старт нового кейса для известного клиента
-
-**Входящие лиды из B2C** *(Phase 3+)*
-
-- Push-уведомление: "Новый лид от пользователя DriverAI"
-- Карточка лида: авто, коды, AI объяснение, контакт
-- Быстрый ответ: принять / отклонить / запросить уточнение
-
-**Офлайн-режим**
-
-- Чтение OBD кодов работает без интернета
-- Данные сохраняются локально (Room DB)
-- Синхронизация с backend при восстановлении соединения
-- Особенно важно для выездных механиков
-
-#### Данные, которые хранит B2B Android (локально)
-
-```
-ShopUser (механик)
- └── ActiveSession[]
-      ├── VehicleInfo (vin, plate, make/model/year)
-      ├── ScannedCodes[] (raw OBD data)
-      ├── FreezeFrameData (все пиды)
-      ├── Photos[] (привязаны к коду)
-      └── Notes[] (текст/голос)
-```
+**✅ Milestone 3 достигнут, когда:** Веб-дашборд → ввод кодов → AI анализ → PDF отчёт
 
 ---
 
-### B2B Web Dashboard — AI Auto Service (для офиса/менеджера)
+## Фаза 4 — Монетизация
 
-#### Слои приложения
+> **Milestone:** Тестовая оплата через Stripe → subscription_status = "premium" → AI разблокирован
 
-```
-┌─────────────────────────────────────────────┐
-│              UI Layer (React)               │  Dashboard, forms, reports
-├─────────────────────────────────────────────┤
-│           Business Logic Layer              │  Case management, AI calls
-├─────────────────────────────────────────────┤
-│                API Client Layer             │  REST API calls to shared backend
-└─────────────────────────────────────────────┘
-```
+### 4.1 Stripe Backend
 
-#### Модули и страницы
+- [ ] Stripe SDK + `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` в .env
+- [ ] Создать Price IDs в Stripe Dashboard (B2C monthly, B2B basic, B2B pro)
+- [ ] `POST /api/v1/b2c/subscription/checkout` → Stripe Checkout session URL
+- [ ] `POST /api/v1/b2b/subscription/checkout` → Stripe Checkout session URL
+- [ ] `POST /api/v1/webhooks/stripe/b2c` → обновить `users.subscription_status`
+- [ ] `POST /api/v1/webhooks/stripe/b2b` → обновить `shops.subscription_tier`
+- [ ] `GET /api/v1/b2c/subscription/status` — статус подписки
+- [ ] `DELETE /api/v1/b2c/subscription` — отмена
 
-**Dashboard (главная)**
+### 4.2 B2C Paywall в приложении
 
-- Активные кейсы (открытые диагностики)
-- Входящие лиды из B2C *(ыPhase 3+)*
-- Быстрая статистика: кейсов за неделю, частые коды, среднее время
-- Быстрый старт: "Новая диагностика"
+- [ ] Проверка `subscription_status` перед показом premium контента
+- [ ] Экран "Upgrade": описание планов + кнопка
+- [ ] Нажатие → открыть Stripe Checkout в браузере (`CustomTabsIntent`)
+- [ ] При возврате в приложение → refresh subscription status
+- [ ] Free tier: только код + severity (без AI объяснения)
+- [ ] Premium tier: полный AI анализ + cost estimation + history
 
-**Новая диагностика**
+### 4.3 B2B Subscription в вебе
 
-- Форма: VIN или марка/модель/год автомобиля
-- Поле для ввода OBD кодов (вручную или список)
-- Поле симптомов (свободный текст)
-- Поле пробега и доп. контекста
-- Запуск AI анализа
+- [ ] Страница Billing: текущий план, следующий платёж, история
+- [ ] Upgrade flow → Stripe Checkout
+- [ ] Basic vs Pro ограничения (количество кейсов/месяц, team members)
+- [ ] Team Management страница (Pro): invite механика по email
 
-**AI Анализ (результат)**
-
-- Список вероятных причин (ranked, с % уверенности)
-- Рекомендуемая последовательность диагностики
-- Чеклист проверок (интерактивный, можно отмечать)
-- Ссылки на типичные решения для данного кода/модели
-- Предупреждение если код встречался в этом авто ранее
-
-**Генерация отчёта для клиента**
-
-- Шаблон: что найдено, что рекомендуется
-- Редактируемый plain-language текст (AI генерирует, механик правит)
-- Добавление фото (опционально)
-- Предпросмотр PDF
-- Экспорт / отправка клиенту (email или печать)
-
-**Estimate Builder (смета)**
-
-- Выбор необходимых запчастей (с поиском по каталогу)
-- Норма-часы (AI предлагает, механик корректирует)
-- Стоимость работы (ставка сервиса × часы)
-- Итоговая смета с наценкой
-- Экспорт в PDF
-
-**Case History (база знаний сервиса)**
-
-- Все сохранённые диагностические кейсы
-- Поиск по коду, модели, симптому
-- Теги и категории
-- "Редкие случаи" — отдельная коллекция
-- Статистика: самые частые коды в сервисе
-
-**Лиды из B2C** *(Phase 3+)*
-
-- Список входящих отчётов от B2C пользователей
-- Карточка лида: авто, коды, AI объяснение, контакт пользователя
-- Статус: новый / просмотрен / отправлена смета / записан / завершён
-- Ответить сметой (интеграция с Estimate Builder)
-
-**Профиль сервиса**
-
-- Название, адрес, геолокация
-- Специализации (двигатель, АКПП, электрика, кузов...)
-- Рабочие часы
-- Контакты для B2C пользователей
-- Аватар и описание
-
-**Подписка и биллинг**
-
-- Текущий план: Basic (49€) / Pro (99€)
-- Количество активных пользователей (механиков)
-- История платежей
-- Управление командой (Pro план)
-
-#### Данные, которые хранит B2B
-
-```
-Shop
- ├── Team (mechanics/users)
- ├── DiagnosticCases[]
- │    ├── Vehicle (make/model/year/vin)
- │    ├── InputCodes[] (ref → shared DTC DB)
- │    ├── AIAnalysisResult (json)
- │    ├── ClientReport (text + pdf)
- │    └── Estimate (parts[], labor, total)
- └── ShopProfile (geo, specializations, schedule)
-```
+**✅ Milestone 4 достигнут, когда:** Реальная оплата → функции разблокированы
 
 ---
 
-### Shared Infrastructure — общий фундамент
+## Фаза 5 — B2B Android
 
-#### Архитектура backend
+> **Milestone:** Механик со смартфоном сканирует OBD → создаёт кейс → видит professional AI анализ
 
-```
-                    ┌─────────────────────────────┐
-                    │       REST API Gateway       │
-                    │   /api/v1/b2c/*              │
-                    │   /api/v1/b2b/*              │
-                    │   /api/v1/shared/*           │
-                    └──────────────┬──────────────┘
-                                   │
-          ┌────────────────────────┼──────────────────────┐
-          ▼                        ▼                       ▼
-  ┌──────────────┐        ┌──────────────┐       ┌──────────────────┐
-  │  Auth Service│        │   AI Service │       │  Geo / Maps      │
-  │  JWT tokens  │        │  Orchestrator│       │  Service         │
-  │  B2C users   │        │  (см. ниже)  │       │  (для Phase 3+)  │
-  │  B2B shops   │        │              │       └──────────────────┘
-  └──────────────┘        └──────┬───────┘
-                                 │
-               ┌─────────────────┼──────────────────┐
-               ▼                 ▼                   ▼
-  ┌────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-  │  PostgreSQL    │  │  Vector DB       │  │  Redis           │
-  │  (основная БД) │  │  (RAG index)     │  │  (semantic cache)│
-  │  DTC codes     │  │  pgvector или    │  │  повторные       │
-  │  cost ranges   │  │  Qdrant          │  │  запросы → кэш   │
-  └────────────────┘  └──────────────────┘  └──────────────────┘
-```
+- [ ] Firebase Auth B2B (ShopUser тип — отдельный flow от B2C)
+- [ ] OBD слой — переиспользовать `data/obd/` из mobile-b2c (копия или shared module)
+- [ ] `DiagnosticCaseRepository` — создание кейса из OBD скана
+- [ ] Экран "Scan + Create Case": поле клиента/авто + кнопка создать кейс
+- [ ] Показать AI анализ (B2B формат): ranked causes + checklist
+- [ ] Список кейсов с синхронизацией (Room + backend)
+- [ ] Offline mode: кэшировать кейсы в Room, sync при восстановлении сети
+- [ ] Push уведомления (FCM) — для будущих лидов
 
-#### Общая схема базы данных (полная)
-
-```
-── B2C DOMAIN ──────────────────────────────────────────
-Users                          Vehicles
-  id (UUID)                      id (UUID)
-  email                          user_id → Users
-  password_hash                  make, model, year
-  subscription_status            engine_type, vin
-  region                         created_at
-  created_at
-
-ScanSessions                   ErrorOccurrences
-  id (UUID)                      id (UUID)
-  vehicle_id → Vehicles          session_id → ScanSessions
-  scan_date, mileage             code → ErrorCodes
-  raw_data_json                  freeze_frame_json
-  risk_score                     occurrence_count
-
-── SHARED DOMAIN ────────────────────────────────────────
-ErrorCodes                     RepairCostEstimates
-  code (PK)                      id
-  standard_description           code → ErrorCodes
-  category                       region
-  severity_level                 min_cost, max_cost
-  can_drive_flag                 avg_labor_hours
-  system (engine/trans/...)      updated_at
-
-── B2B DOMAIN ───────────────────────────────────────────
-Shops                          ShopUsers (механики)
-  id (UUID)                      id (UUID)
-  name, address                  shop_id → Shops
-  lat, lng                       email, role
-  specializations[]              created_at
-  subscription_tier
-  rating, verified
-
-DiagnosticCases                CaseItems (коды в кейсе)
-  id (UUID)                      id (UUID)
-  shop_id → Shops                case_id → DiagnosticCases
-  vehicle_json                   code → ErrorCodes
-  symptoms_text                  notes
-  ai_result_json
-  client_report_text
-  estimate_json
-  created_at
-
-── INTEGRATION DOMAIN (Phase 3+) ────────────────────────
-ServiceLeads                   ShopQuotes
-  id (UUID)                      id (UUID)
-  scan_session_id → ScanSessions lead_id → ServiceLeads
-  shop_id → Shops                parts_cost
-  user_id → Users                labor_cost
-  status (enum)                  total_cost
-  user_consent: bool             estimated_days
-  created_at                     message_text
-  updated_at                     created_at
-```
-
-#### AI Service — полная архитектура (Rule Engine + RAG + LLM)
-
-```
-Input (от B2C или B2B)
-  ├── DTC код(ы)
-  ├── Freeze frame данные
-  ├── Марка / модель / год / двигатель
-  └── История повторений
-         │
-         ▼
-┌─────────────────────────────────────────┐
-│         Layer 1: Rule Engine            │  детерминированная логика
-│  - severity: Low / Medium / High        │  100% без галлюцинаций
-│  - can_drive: Yes / Limited / No        │  быстро, бесплатно
-│  - cost range lookup (PostgreSQL)       │  доступно всем (free tier)
-│  - known_issue флаги по make/model      │
-└──────────────────┬──────────────────────┘
-                   │ structured_result{}
-                   ▼
-┌─────────────────────────────────────────┐
-│         Layer 2: RAG Retrieval          │  только для платных users
-│                                         │
-│  Vector DB запрос по коду + контексту:  │
-│  - официальное описание DTC             │
-│  - частые причины по make/model/year    │
-│  - TSB (Technical Service Bulletins)    │
-│  - типовые последовательности диагностики│
-│  - стоимость ремонта по региону         │
-│  - форумные паттерны (анонимно)         │
-│                                         │
-│  Возвращает: top-K релевантных чанков   │
-└──────────────────┬──────────────────────┘
-                   │ context_chunks[]
-                   ▼
-┌─────────────────────────────────────────┐
-│         Layer 3: LLM Router             │  выбор модели по сложности
-│                                         │
-│  Простые / частые коды:                 │
-│    → Local LLM (Llama 3 8B / Mistral)  │  дёшево, быстро
-│    → Ollama / vLLM на своём сервере     │
-│                                         │
-│  Редкие / сложные / B2B кейсы:          │
-│    → External API (Claude / OpenAI)     │  дорого, но качество
-│                                         │
-│  Кэш: если такой запрос уже был →       │
-│    → Redis semantic cache (мгновенно)   │
-└──────────────────┬──────────────────────┘
-                   │ llm_output{}
-                   ▼
-┌─────────────────────────────────────────┐
-│         Layer 4: Output Formatter       │
-│  - human explanation (B2C: просто)      │
-│  - ranked causes с % (B2B: детально)    │
-│  - diagnostic checklist (B2B)           │
-│  - client report text (B2B PDF)         │
-│  - risk badge + cost range              │
-└─────────────────────────────────────────┘
-```
-
-**Почему именно такая структура:**
-
-
-| Слой        | Отвечает за                  | Почему нельзя доверить LLM             |
-| ----------- | ---------------------------- | -------------------------------------- |
-| Rule Engine | Severity, can_drive, risk    | Это безопасность — LLM может ошибиться |
-| RAG         | Контекст и факты             | LLM "придумывает" без источников       |
-| LLM Router  | Выбор модели                 | Оптимизация cost vs quality            |
-| LLM         | Только текст, форматирование | Ошибка в тексте — не критична          |
-
-
-**Semantic Cache (Redis):**
-Если пользователь спрашивает `P0420 + Toyota Camry 2018` — а такой же запрос уже был обработан → возвращаем кэшированный ответ за 10ms вместо 2-3 секунд. Для OBD это работает отлично: одни и те же коды на одних и тех же машинах — очень частый паттерн.
+**✅ Milestone 5 достигнут, когда:** B2B Android создаёт кейс из OBD скана
 
 ---
 
-### Связи между приложениями
+## Фаза 6 — Integration Bridge *(после 5,000+ B2C MAU)*
 
-#### Уровень 1 — Общая инфраструктура (с Phase 0)
+> **Milestone:** B2C пользователь отправляет диагностику → B2B сервис получает лид в dashboard
 
-Оба приложения с первого дня используют:
+### 6.1 B2C → найти сервис
 
-- Один и тот же AI Service (одинаковая логика интерпретации DTC)
-- Одну DTC Database (один источник правды для кодов ошибок)
-- Один backend API (разные namespace: `/b2c/`, `/b2b/`)
-- Общую таблицу `RepairCostEstimates` (одни данные о ценах)
+- [ ] `GET /api/v1/b2c/shops/nearby?lat=&lng=&radius_km=` — список сервисов рядом
+- [ ] Экран "Найти сервис" в B2C приложении (список или карта)
+- [ ] Кнопка "Отправить диагностику в сервис"
 
-```
-B2C App ──→ POST /api/v1/b2c/analyze ──→ AI Service ──→ DTC DB
-B2B App ──→ POST /api/v1/b2b/analyze ──→ AI Service ──→ DTC DB
-                                              ↑
-                                       одна и та же логика
-```
+### 6.2 Lead System
 
-#### Уровень 2 — Данные улучшают AI (с Phase 2)
+- [ ] `POST /api/v1/b2c/leads` — отправить `scan_session` в сервис (с согласия пользователя)
+- [ ] `GET /api/v1/b2c/leads` — мои отправленные лиды (статус, ответы)
+- [ ] `GET /api/v1/b2b/leads` — входящие лиды в B2B dashboard
+- [ ] B2B Web: страница лидов — принять/отклонить/отправить смету
+- [ ] `PUT /api/v1/b2b/leads/{id}/quote` — ответить сметой
+- [ ] B2C: уведомление о полученной смете
 
-B2C накапливает реальные данные, которые делают AI умнее для обоих продуктов:
+### 6.3 Геосервис
 
-```
-B2C ScanSessions (агрегировано, анонимно)
-  ├── Частота кодов по маркам/моделям → Rule Engine accuracy ↑
-  ├── Региональные цены (из закрытых лидов) → RepairCostEstimates ↑
-  └── Паттерны повторений → Confidence Model ↑
-                    │
-                    ▼
-          B2B AI отвечает точнее
-```
+- [ ] PostGIS или простые `lat/lng` запросы в PostgreSQL
+- [ ] Верификация сервисов (ручная на старте)
+- [ ] Профили сервисов видны B2C пользователям
 
-#### Уровень 3 — Integration Bridge (с Phase 3)
-
-Прямая связь между двумя приложениями через `ServiceLeads`:
-
-```
-B2C User                    Shared Backend              B2B Shop
-    │                             │                         │
-    │──[сканировал P0420]────────>│                         │
-    │<─[объяснение + риск HIGH]───│                         │
-    │                             │                         │
-    │──[нажал "Найти сервис"]────>│                         │
-    │<─[список партнёрских]────────│                         │
-    │                             │                         │
-    │──[выбрал сервис, отправил]─>│──[Lead: NEW]──────────>│
-    │                             │                         │──[просмотрел]
-    │                             │<──[Lead: QUOTED]────────│──[создал смету]
-    │<─[смета: 450€, 2 дня]───────│                         │
-    │                             │                         │
-    │──[подтвердил запись]───────>│──[Lead: BOOKED]───────>│
-    │                             │                         │
-```
-
-#### Сводная карта связей
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      SHARED BACKEND API                          │
-│                                                                  │
-│  ┌─── Shared ───────────────────────────────────────────────┐   │
-│  │  DTC Database · AI Service · RepairCostEstimates         │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  ┌─── B2C Domain ────────┐    ┌─── B2B Domain ───────────────┐  │
-│  │  Users                │    │  Shops                       │  │
-│  │  Vehicles             │    │  ShopUsers                   │  │
-│  │  ScanSessions    ─────┼────┼──→ ServiceLeads              │  │
-│  │  ErrorOccurrences     │    │    ShopQuotes                │  │
-│  └───────────────────────┘    │  DiagnosticCases             │  │
-│                               └──────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
-         ↑                                      ↑
-   B2C Mobile App                   B2B Android App        B2B Web Dashboard
-   (Kotlin/Android)                 (Kotlin/Android)       (React/TypeScript)
-```
-
-#### Что никогда не пересекается
-
-Важно понимать, что разделено намеренно:
-
-
-|                         | B2C                     | B2B                            |
-| ----------------------- | ----------------------- | ------------------------------ |
-| Аутентификация          | `Users` таблица, JWT    | `Shops/ShopUsers` таблица, JWT |
-| История                 | `ScanSessions` (личные) | `DiagnosticCases` (сервиса)    |
-| AI результат            | Объяснение для водителя | Анализ для механика            |
-| Данные клиентов сервиса | Нет доступа             | Только свои кейсы              |
-
-
-Пользователи B2C не видят данные других пользователей.
-Сервисы B2B не видят чужие диагностики.
-`ServiceLeads` создаётся **только с явного согласия** B2C пользователя.
+**✅ Milestone 6 достигнут, когда:** Полный цикл лида: B2C → лид → смета → запись
 
 ---
 
-## LLM Стратегия: собственный сервер + RAG
+## Справочные документы
 
-### Главный принцип
-
-> AI — это 30%. Данные + структура — 70%.
-
-Создавать модель с нуля — не нужно и не оправдано.
-Правильный путь: **open-source 7B–8B модель + RAG + Rule Engine + поэтапный переход к self-hosted**.
-
----
-
-### RAG Knowledge Base — что храним
-
-RAG (Retrieval Augmented Generation) — это база знаний, из которой LLM берёт контекст вместо того, чтобы "придумывать". Для OBD проекта это особенно критично.
-
-**Содержимое Vector DB:**
-
-```
-OBD Knowledge Base (векторная БД)
-├── DTC Codes
-│    ├── ~15,000 стандартных OBD-II кодов (P/B/C/U)
-│    ├── Расширенные manufacturer-specific коды (BMW, VW, Toyota, Ford...)
-│    └── Описание, категория, система, возможные причины
-│
-├── TSB (Technical Service Bulletins)
-│    ├── Официальные бюллетени производителей
-│    └── Привязка: код + make + model + year → конкретный TSB
-│
-├── Known Issues (паттерны)
-│    ├── "P0171 на Toyota 1ZZ — чаще всего MAFS или вакуумная утечка"
-│    └── Собирается из форумов + реальных ремонтов
-│
-├── Diagnostic Procedures
-│    ├── Последовательность проверок для каждого кода
-│    └── Чеклисты (какой прибор, что измерить, нормы)
-│
-├── Repair Cost Data
-│    ├── Средние цены по регионам (PL, DE, EU)
-│    └── Запчасти + норма-часы
-│
-└── User Scan History (агрегировано, анонимно)
-     ├── Частота кода по make/model/year
-     └── Паттерны повторений → confidence score
-```
-
-**Технология хранения:**
-
-- **pgvector** (расширение PostgreSQL) — идеально для старта. Одна БД для всего.
-- **Qdrant** — если объём вырастет и нужна выделенная векторная БД.
-- Embeddings: `text-embedding-3-small` (OpenAI) или `nomic-embed-text` (локальная, бесплатная).
+| Документ | Содержание |
+|----------|-----------|
+| [architecture.md](architecture.md) | Полная архитектура, AI стратегия, LLM Router, схема БД |
+| [api_contract.md](api_contract.md) | Все API endpoints с request/response схемами |
+| [prompts.md](prompts.md) | 6 LLM промптов для B2C и B2B |
+| [AI_OBD_Diagnostic_MVP.md](AI_OBD_Diagnostic_MVP.md) | B2C MVP спецификация |
+| [AI_Auto_Service_Assistant_MVP.md](AI_Auto_Service_Assistant_MVP.md) | B2B MVP спецификация |
+| [AI_OBD_Diagnostic_Production_Strategy.md](AI_OBD_Diagnostic_Production_Strategy.md) | B2C роадмап, unit economics |
 
 ---
 
-### Выбор LLM моделей
-
-**Для self-hosted (7B–8B, работают на 24GB VRAM):**
-
-
-| Модель              | Сильные стороны                     | Для чего                    |
-| ------------------- | ----------------------------------- | --------------------------- |
-| Llama 3.1 8B (Meta) | Лучший баланс качество/размер       | B2C объяснения, частые коды |
-| Mistral 7B          | Быстрый, хорошо следует инструкциям | B2C, низкая латентность     |
-| Qwen2.5 7B          | Хорошо с техническими данными       | B2B диагностика             |
-
-
-**Почему не 70B:** работает на 80GB VRAM (A100), стоит $10,000+. Для OBD задач 8B с хорошим RAG даёт 90% качества 70B при 10% стоимости.
-
-**Для external API (сложные / редкие кейсы):**
-
-- **Claude Sonnet** — лучший для технических объяснений и длинных отчётов
-- **GPT-4o** — альтернатива
-
----
-
-### LLM Router — логика выбора модели
-
-```
-Запрос пришёл
-      │
-      ▼
-Redis cache hit? ──YES──→ вернуть кэш (0ms)
-      │ NO
-      ▼
-Rule Engine → structured_result
-      │
-      ▼
-RAG retrieval → context_chunks (top-3)
-      │
-      ▼
-Роутер оценивает сложность запроса:
-      │
-      ├── Стандартный код + популярная марка + context найден
-      │     → Local LLM (Llama 3 8B)   ~500ms, ~€0.0001
-      │
-      ├── Редкий код / нестандартная ситуация / B2B отчёт
-      │     → External API (Claude)     ~2000ms, ~€0.005
-      │
-      └── B2B: полная диагностика + PDF отчёт
-            → External API (Claude)     ~3000ms, ~€0.01
-```
-
-**Ориентировочные расходы при 10,000 MAU (700 платящих):**
-
-
-| Тип запроса                 | Объём/мес | Стоимость           |
-| --------------------------- | --------- | ------------------- |
-| Local LLM (80% запросов)    | ~1,700    | ~€2–5 (electricity) |
-| External API (20% запросов) | ~420      | ~€8–15              |
-| Redis cache hits            | ~1,400    | €0                  |
-| **Итого**                   |           | **~€10–20/мес**     |
-
-
-Vs. только OpenAI API: ~€80–120/мес (из Production Strategy).
-Экономия: 80–85% при сопоставимом качестве.
-
----
-
-### Поэтапный переход к self-hosted
-
-#### Фаза 1 — MVP: только внешний API
-
-```
-Все LLM запросы → Claude / OpenAI API
-Параллельно: строим RAG базу, собираем реальные диалоги
-```
-
-- Нет DevOps накладных расходов
-- Быстрый старт
-- Собираем данные для будущего fine-tune
-
-#### Фаза 2 — Гибрид (после 1,000+ MAU)
-
-```
-Простые/частые запросы → Local Llama 3 8B (Ollama)
-Сложные/редкие → External API (Claude)
-Все запросы → через RAG
-```
-
-- Ollama на одном сервере (RTX 4090 или арендованный GPU cloud)
-- Снижение расходов на LLM в 5–8x
-- RAG уже обкатан на реальных данных
-
-**Облачные GPU для старта (без покупки железа):**
-
-
-| Сервис        | GPU           | Цена         | Подходит для                   |
-| ------------- | ------------- | ------------ | ------------------------------ |
-| Hetzner Cloud | RTX 4000 Ada  | €1.35/час    | Dev / нагрузочное тестирование |
-| RunPod        | RTX 4090      | $0.74/час    | Постоянный inference           |
-| AWS EC2 g4dn  | T4 16GB       | ~$0.5/час    | Spot instances                 |
-| Vast.ai       | RTX 3090/4090 | $0.3–0.5/час | Самый дешёвый                  |
-
-
-Для продакшен inference одной Llama 3 8B достаточно **RTX 4090 (24GB)** — постоянный аренда на RunPod ~$350–400/мес.
-
-#### Фаза 3 — Fine-tune (после 10,000+ реальных диалогов)
-
-```
-Dataset: реальные B2C диалоги + B2B диагностические кейсы
-Method: LoRA (Low-Rank Adaptation) — fine-tune без полного обучения
-Cost: $500–2,000 за один run
-Result: модель, специализированная именно на OBD диагностике
-```
-
-Fine-tune делает модель:
-
-- Точнее в автомобильной терминологии
-- Лучше в структурировании ответов под твой формат
-- Эффективнее в использовании RAG контекста
-
----
-
-### B2C vs B2B — разница в AI запросах
-
-```
-B2C (водитель)                    B2B (механик)
-─────────────────────────────     ─────────────────────────────
-Вход: код + марка авто            Вход: коды + freeze frame +
-                                        симптомы + история авто
-
-Выход: простое объяснение,        Выход: ранжированные причины,
-       риск, можно ехать,                чеклист диагностики,
-       примерная цена                    PDF отчёт для клиента,
-                                        смета (запчасти + часы)
-
-Модель: Local 8B (80% запросов)   Модель: External API (Claude)
-Длина ответа: ~200 слов           Длина ответа: ~500–1000 слов
-Стоимость: €0.0001/запрос         Стоимость: €0.01/запрос
-```
-
-**Ключевое отличие:** B2B генерирует профессиональные документы — здесь нужно максимальное качество, внешний API оправдан. B2C работает на локальной модели.
-
----
-
-### B2B offline-режим (уникальное преимущество)
-
-Когда self-hosted LLM развёрнут, B2B SaaS может работать в **offline-режиме**:
-
-- Сервис развёртывает локальный inference узел (или использует твой облачный)
-- Диагностика работает без интернета
-- Особенно ценно для выездных механиков и сервисов с плохим интернетом
-
-Это конкурентное преимущество, которого нет у конкурентов на чистом SaaS API.
-
----
-
-### Итоговая схема AI инфраструктуры
-
-```
-┌───────────────────────────────────────────────────────┐
-│                    AI Service                         │
-│                                                       │
-│  ┌─────────────┐  ┌────────────┐  ┌───────────────┐  │
-│  │ Rule Engine │  │    RAG     │  │  LLM Router   │  │
-│  │ (Python)    │  │ Retrieval  │  │               │  │
-│  │ severity    │  │ pgvector / │  │  simple ──────┼──┼──→ Local LLM
-│  │ can_drive   │  │ Qdrant     │  │               │  │    (Llama 3 8B)
-│  │ cost lookup │  │            │  │  complex ─────┼──┼──→ Claude API
-│  └──────┬──────┘  └─────┬──────┘  │               │  │
-│         │               │         │  cached ──────┼──┼──→ Redis
-│         └───────────────┘         └───────────────┘  │
-│                   │                                   │
-│                   ▼                                   │
-│          structured_context{}                         │
-│                   +                                   │
-│            llm_response{}                             │
-│                   │                                   │
-│                   ▼                                   │
-│           Output Formatter                            │
-│        (B2C format / B2B format)                      │
-└───────────────────────────────────────────────────────┘
-         ↑                              ↑
-   B2C Android App              B2B Web Dashboard
-```
-
----
-
-## Выбор технологии Backend
-
-### Требования к backend этого проекта
-
-1. **AI/LLM интеграция** — вызовы Claude/OpenAI, обработка structured output, Rule Engine
-2. **Параллельные запросы** — много пользователей сканируют одновременно, каждый вызов AI асинхронный
-3. **REST API** для двух клиентов: Android app и Web SaaS
-4. **Горизонтальное масштабирование** — Docker + несколько инстансов при росте нагрузки
-5. **PostgreSQL** — основная БД (JSON поля для freeze_frame, UUID, гео-запросы)
-6. **Соло разработка** — скорость итерации важна на старте
-
----
-
-### Сравнение вариантов
-
-
-| Критерий            | FastAPI (Python) | NestJS (Node.js/TS) | Go (Gin/Fiber) |
-| ------------------- | ---------------- | ------------------- | -------------- |
-| AI/LLM интеграция   | ★★★★★ нативно    | ★★★★ через SDK      | ★★★ неудобно   |
-| Rule Engine         | ★★★★★ гибко      | ★★★★                | ★★★            |
-| Скорость разработки | ★★★★★            | ★★★★                | ★★★            |
-| Производительность  | ★★★★ async       | ★★★★ async          | ★★★★★          |
-| Масштабируемость    | ★★★★             | ★★★★                | ★★★★★          |
-| Экосистема для AI   | ★★★★★            | ★★★                 | ★★             |
-| Сложность           | низкая           | средняя             | высокая        |
-
-
----
-
-### Рекомендация: FastAPI (Python)
-
-**Причины:**
-
-**1. AI — это ядро продукта**
-Rule Engine, LLM вызовы, Confidence Model — всё это пишется на Python в 3 строки там, где в других языках нужны SDK-обёртки и костыли. Библиотеки `anthropic`, `openai`, `langchain`, `pydantic` — нативный Python.
-
-**2. FastAPI асинхронный по умолчанию**
-`async/await` из коробки — каждый AI запрос не блокирует остальных пользователей. При пиковой нагрузке горизонтально масштабируется через несколько uvicorn воркеров или контейнеров.
-
-**3. Pydantic = автоматическая валидация и документация**
-Схемы запросов/ответов определяются один раз → автогенерация OpenAPI документации → Android и Web клиенты всегда знают актуальный контракт API.
-
-**4. Скорость итерации критична для MVP**
-Добавить новый endpoint или изменить логику Rule Engine — минуты, не часы.
-
----
-
-### Архитектура backend (FastAPI)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   FastAPI Application                   │
-│                                                         │
-│  /api/v1/b2c/*     /api/v1/b2b/*    /api/v1/shared/*   │
-│       │                  │                  │           │
-│  ┌────▼────┐        ┌────▼────┐      ┌──────▼──────┐   │
-│  │  B2C    │        │  B2B    │      │   Shared    │   │
-│  │ Router  │        │ Router  │      │   Router    │   │
-│  └────┬────┘        └────┬────┘      └──────┬──────┘   │
-│       └────────────┬─────┘                  │           │
-│                    ▼                        │           │
-│            ┌───────────────┐                │           │
-│            │  AI Service   │◄───────────────┘           │
-│            │  Rule Engine  │                            │
-│            │  LLM calls    │                            │
-│            └───────┬───────┘                            │
-│                    │                                    │
-│            ┌───────▼───────┐   ┌──────────────────┐    │
-│            │  PostgreSQL   │   │  Redis (cache)   │    │
-│            │  (основная)   │   │  DTC lookups     │    │
-│            └───────────────┘   │  session data    │    │
-│                                └──────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Стек масштабирования (по мере роста)
-
-```
-MVP (старт):
-  Один сервер → FastAPI + Uvicorn + PostgreSQL + Redis
-
-5,000+ пользователей:
-  Docker Compose → несколько FastAPI инстансов + Nginx балансировщик
-
-10,000+ пользователей:
-  Kubernetes + managed PostgreSQL (Railway/Supabase/RDS) + Redis Cloud
-  Отдельный AI worker service для тяжёлых LLM запросов (Celery + RabbitMQ)
-```
-
-### Про iOS в будущем
-
-Backend не изменится — тот же REST API.
-Варианты для iOS:
-
-- **Kotlin Multiplatform Mobile (KMM)** — переиспользовать бизнес-логику из Android, писать только UI на SwiftUI. Наименее затратный путь.
-- **Swift (нативный)** — отдельное приложение, полная свобода, но двойная работа.
-- **React Native / Flutter** — если в будущем захочется кросс-платформу, можно переписать. Но сейчас Kotlin — правильный выбор для старта на Android.
-
----
-
-## Принятые технические решения
-
-### Аутентификация — Firebase Auth
-
-**Решение:** Firebase Auth для обоих приложений.
-
-- Android (B2C): Firebase Auth SDK — Google Sign-In одной строкой + email/password
-- Web (B2B): Firebase Auth JS SDK — тот же провайдер
-- Backend: Firebase Admin SDK (Python) верифицирует ID Token → создаёт/находит запись в нашей БД
-- iOS (будущее): Firebase Auth полностью поддерживает iOS + Apple Sign-In из коробки
-
-```
-Android/Web → Firebase Auth → ID Token → Backend verifies → наш UUID
-```
-
-Vendor lock-in минимален: Firebase Auth можно заменить на Supabase Auth или Auth0 без изменения логики приложений (только SDK swap).
-
----
-
-### Frontend B2B — React
-
-**Решение:** React + Vite + TypeScript
-
-- React — крупнейшая экосистема, лучший выбор для SaaS dashboards
-- Vite — быстрая сборка, HMR
-- TypeScript — строгая типизация, особенно важно при работе с API контрактом
-- TanStack Query — управление серверным состоянием (fetch, cache, invalidate)
-- Tailwind CSS — быстрая стилизация без написания CSS
-
----
-
-### DTC База данных — открытые источники
-
-**Решение для MVP:** скрапинг + открытые датасеты, ручная валидация для топ-500 кодов.
-
-**Источники (в порядке приоритета):**
-
-1. **GitHub датасеты** — `github.com` поиск по "OBD DTC codes JSON dataset" — несколько готовых баз
-2. **obd-codes.com** — ~5,000 кодов с описаниями, категориями, причинами
-3. **WikiPedia OBD-II PIDs** — официальные стандартные коды
-4. **NHTSA база TSB** — `api.nhtsa.gov` — бесплатный API для TSB по VIN
-
-**Приоритет наполнения для MVP:**
-
-- Phase 1: Стандартные P0xxx коды (~2,000) — полностью автоматически
-- Phase 2: Manufacturer-specific P1xxx/P2xxx для VW, Toyota, BMW, Ford, Opel — частично из форумов
-- Phase 3+: TSB привязки + известные проблемы по make/model/year
-
-**Структура записи в БД:**
-
-```json
-{
-  "code": "P0420",
-  "standard_description": "Catalyst System Efficiency Below Threshold Bank 1",
-  "category": "P",
-  "system": "emissions",
-  "severity_level": "medium",
-  "can_drive_flag": "yes_with_caution",
-  "common_causes": ["worn catalyst", "O2 sensor fault", "exhaust leak"],
-  "manufacturer_specific": false,
-  "affects_makes": null
-}
-```
-
----
-
-### Оплата — подробное объяснение
-
-**Почему нельзя просто использовать Stripe в Android приложении:**
-
-Google Play Store имеет правило: если твоё приложение продаёт цифровые товары или подписки через интерфейс приложения, ты **обязан** использовать Google Play Billing. Google берёт 15–30% комиссию.
-
-Примеры: Spotify, Netflix, YouTube Premium — они **не позволяют** купить подписку в Android app, только на сайте. Это не баг, это намеренная стратегия.
-
-**Принятое решение: Web-based подписка через Stripe (для B2C и B2B)**
-
-```
-B2C User flow:
-  Тап "Улучшить" в приложении
-    → открывается браузер/WebView → страница на твоём сайте
-    → пользователь платит через Stripe (карта, BLIK, Apple Pay, Google Pay)
-    → Stripe webhook → backend обновляет subscription_status
-    → при следующем открытии приложение видит premium статус
-
-B2B flow:
-  Механик открывает billing page на сайте
-    → оплата через Stripe (карта или SEPA)
-    → Stripe webhook → backend обновляет shop subscription_tier
-```
-
-**Почему Stripe, а не Google Play Billing:**
-
-
-|                      | Stripe (Web)                 | Google Play Billing   |
-| -------------------- | ---------------------------- | --------------------- |
-| Комиссия             | 1.4–1.9% + €0.25 (EU cards)  | 15–30%                |
-| Валюты/методы        | 135+ валют, BLIK, SEPA       | Ограничено Play Store |
-| Управление подпиской | Полный контроль              | Ограничен Google      |
-| iOS совместимость    | Та же система, без изменений | Не применимо          |
-| Реализация           | Stripe SDK + webhook         | Отдельная интеграция  |
-
-
-**При 49€/мес за B2B подписку:**
-
-- Google Play: Google забирает 14.70€ (30%) или 7.35€ (15% после 12 мес)
-- Stripe: Stripe забирает ~1.20€ (2.4% EU cards)
-
-**Stripe для MVP — Stripe Checkout** (готовая страница оплаты, не нужно верстать форму с картой):
-
-```python
-# FastAPI endpoint
-import stripe
-
-@router.post("/b2c/subscription/checkout")
-async def create_checkout(plan: str, user: User):
-    session = stripe.checkout.Session.create(
-        payment_method_types=["card", "blik"],
-        mode="subscription",
-        line_items=[{"price": PRICE_IDS[plan], "quantity": 1}],
-        success_url="https://yourapp.com/success",
-        cancel_url="https://yourapp.com/cancel",
-        metadata={"user_id": str(user.id)}
-    )
-    return {"checkout_url": session.url}
-```
-
----
-
-### Новые документы
-
-- [docs/api_contract.md](api_contract.md) — полный API контракт, все endpoints с request/response схемами
-- [docs/prompts.md](prompts.md) — 6 LLM промптов для B2C и B2B с примерами output и routing логикой
-
----
-
-## Phase 0 — Foundation & Dual Validation
-
-`~4–5 недель`
-
-### Цель
-
-Заложить фундамент для обоих продуктов одновременно. Проверить спрос с обеих сторон.
-
-### Validation (параллельно)
-
-- Landing page для B2C + waitlist → цель: 500+ водителей
-- Landing page для B2B + ранние регистрации → цель: 20+ заинтересованных сервисов
-- Опросы водителей: боли с OBD-приложениями, готовность платить
-- Опросы механиков: как они сейчас работают с диагностикой
-
-> Почему важно валидировать B2B сразу?
-> Классическая ошибка — потратить год на B2C, потом обнаружить, что сервисы не хотят платить за B2B или функции им не нужны.
-
-### Shared Infrastructure
-
-- Проектирование единой схемы БД (с учётом будущих таблиц Shops/Leads)
-- Базовый REST API (FastAPI или Node.js)
-- Аутентификация (JWT)
-- DTC Database — единая база кодов ошибок для обоих приложений
-- Базовый AI Layer (Rule Engine + LLM wrapper) — используется и в B2C, и в B2B
-
-### Deliverables
-
-- Подтверждённый спрос от водителей и сервисов
-- Работающий shared backend с AI слоем
-- 500+ B2C waitlist, 10+ заинтересованных сервисов для пилота
-
----
-
-## Phase 1 — Параллельный MVP
-
-`~10–12 недель`
-
-### B2C (основной фокус)
-
-- Flutter app: OBD Bluetooth (ELM327) подключение
-- Чтение и отображение кодов ошибок
-- AI объяснение: простой язык + риск-уровень + можно ли ехать
-- Базовые оценки стоимости ремонта по регионам
-- История сканирований (cloud + local cache)
-- Закрытая бета: 100–300 пользователей
-
-### B2B (параллельно, приватно)
-
-- Веб-дашборд: ввод OBD кодов + симптомов вручную
-- AI анализ: вероятные причины + чеклист диагностики
-- Генерация отчёта для клиента
-- Базовый estimate builder (запчасти + норма-часы)
-- Приватная альфа: 3–5 пилотных сервисов (бесплатно, как design partners)
-
-### Что общее
-
-- Один AI Layer для обоих — одна и та же логика интерпретации DTC кодов
-- Один backend API — разные endpoints, общая база кодов
-- Оба проекта используют одну DTC Database
-
-### Deliverables
-
-- B2C: публичная бета с реальными пользователями
-- B2B: работающий инструмент, протестированный 3–5 механиками
-- Первая обратная связь от обеих аудиторий
-
----
-
-## Phase 2 — Монетизация и доработка
-
-`~6–8 недель`
-
-### B2C
-
-- Платная подписка: Stripe / RevenueCat
-- Paywall: бесплатно — чтение кодов, платно — AI объяснение, риск, стоимость
-- Улучшение AI на основе реальных scan logs из бета
-- VIN профиль автомобиля
-- Обновлённая модель оценки стоимости
-
-### B2B
-
-- Доработка на основе фидбэка пилотных сервисов
-- Case History: сохранение редких случаев, поиск по истории
-- PDF экспорт отчётов
-- Улучшенный estimate builder
-- Subscription flow: 49€ / 99€ в месяц
-
-### Что общее
-
-- Агрегированная анонимная статистика из B2C начинает улучшать B2B AI
-- Общий pricing dataset: реальные данные вместо статичных диапазонов
-
-### Deliverables
-
-- B2C: платящие пользователи, первая выручка
-- B2B: доказанный продукт с testimonials от пилотов, готов к публичному запуску
-
----
-
-## Phase 3 — B2B Публичный запуск + Integration Bridge
-
-`~6–8 недель`
-
-### B2B Public Launch
-
-- Публичный запуск с онбордингом
-- Маркетинг: таргет на автосервисы (LinkedIn, автофорумы, холодный outreach)
-- Referral: пилотные сервисы рекомендуют продукт
-
-### Integration Bridge (первый уровень связи)
-
-Минимальная, но ценная связь без полного marketplace:
-
-- В B2C после диагностики: кнопка **"Отправить отчёт в сервис"**
-- Пользователь вводит email/телефон сервиса — отчёт уходит в структурированном виде
-- Зарегистрированные B2B сервисы получают отчёт прямо в dashboard
-- B2C показывает список партнёрских сервисов (вручную curated, без полного геопоиска)
-
-> Это простая, но реально ценная функция. Механик получает готовую диагностику
-> вместо того, чтобы слушать объяснение клиента "что-то там мигает".
-
-### Cross-promotion
-
-- B2B сервисы рекомендуют своим клиентам скачать B2C приложение
-- B2C приложение показывает "Наши партнёрские сервисы"
-
-### Deliverables
-
-- B2B: первые платящие сервисы
-- Первые cross-app транзакции (отчёты, отправленные из B2C в B2B)
-- Данные о конверсии: сколько % пользователей отправляют отчёты в сервис
-
----
-
-## Phase 4 — Full Ecosystem
-
-`ongoing`
-
-### Marketplace
-
-- Геопоиск: сервисы рядом на карте (по специализации и рейтингу)
-- ServiceLeads: пользователь отправляет отчёт → сервис видит лид в dashboard
-- Quote System: механик отвечает сметой → пользователь видит в B2C app
-- Booking: запись на ремонт прямо из приложения
-
-### Монетизация связи
-
-- Lead fee: 3–5€ за каждый входящий лид с диагностикой
-- Featured listing: приоритет в геопоиске
-- Booking commission: % от записи на ремонт
-
-### Advanced Features
-
-- B2C: фото-диагностика, анализ звука двигателя, EV / гибрид поддержка
-- B2B: агрегированная аналитика, региональные отчёты о частых неисправностях
-- AI обучается на реальных данных: диагностика → реальный ремонт → результат
-
----
-
-## Сводная таблица фаз
-
-
-| Phase           | Длительность | B2C                   | B2B                            | Связь                    |
-| --------------- | ------------ | --------------------- | ------------------------------ | ------------------------ |
-| 0: Foundation   | 4–5 нед      | Validation + waitlist | Validation + сервисы           | Shared backend & AI      |
-| 1: MVP          | 10–12 нед    | Публичная бета        | Приватная альфа (3–5 сервисов) | Общий AI Layer           |
-| 2: Monetization | 6–8 нед      | Платная подписка      | Доработка + 49€/99€            | Данные B2C → B2B AI      |
-| 3: B2B Launch   | 6–8 нед      | Стабилизация          | Публичный запуск               | Integration Bridge       |
-| 4: Ecosystem    | Ongoing      | Advanced features     | Marketplace full               | Leads + Quotes + Booking |
-
-
-**Общий timeline до первой cross-app монетизации: ~9–10 месяцев**
-
----
-
-## Дополнительные улучшения относительно исходного плана
-
-### 1. Единый AI сервис вместо двух
-
-Обе приложения используют одну логику интерпретации DTC.
-Это сокращает разработку и упрощает поддержку.
-
-### 2. Пилотные сервисы как "design partners"
-
-3–5 сервисов получают B2B бесплатно в обмен на:
-
-- Детальный фидбэк каждые 2 недели
-- Реальные кейсы для маркетинга (testimonials, case studies)
-- Данные о реальных ремонтах для улучшения AI
-
-### 3. Progressive Integration (3 уровня)
-
-Вместо "всё сразу" — постепенное усложнение:
-
-```
-Уровень 1 (Phase 3): Email/webhook отправки отчёта → сервис
-Уровень 2 (Phase 4 start): Геопоиск + лиды в dashboard
-Уровень 3 (Phase 4 full): Quotes + Booking + Payments
-```
-
-### 4. Схема БД проектируется с учётом интеграции с самого начала
-
-Таблицы Shops, ServiceLeads, ShopQuotes — в схеме с Phase 0,
-даже если не используются до Phase 3. Никакого рефакторинга потом.
-
-### 5. Cross-promotion как бесплатный канал роста
-
-- B2B сервисы → рекомендуют B2C клиентам (бесплатный user acquisition)
-- B2C пользователи → видят партнёрские сервисы (бесплатный shop acquisition)
-- Каждая сторона помогает расти другой
-
----
-
-## Риски и митигация
-
-
-| Риск                                      | Вероятность    | Митигация                                                                    |
-| ----------------------------------------- | -------------- | ---------------------------------------------------------------------------- |
-| Сервисы не хотят платить 49–99€           | Средняя        | Пилот бесплатно → доказать ценность → тогда платно                           |
-| B2C медленно набирает пользователей       | Средняя        | Phase 0 validation, SEO на OBD коды, партнёрство с ELM327 продавцами         |
-| Параллельная разработка перегружает       | Высокая (соло) | Общий backend снижает нагрузку; B2B в Phase 1 — только MVP без лишнего       |
-| Интеграция не используется пользователями | Средняя        | Начать с простого (email отчёт), измерить конверсию перед полным marketplace |
-| Качество AI (галлюцинации)                | Высокая        | Rule Engine для критических данных, LLM только для объяснений                |
-
-
+*Последнее обновление: 2026-03-02*
+*Текущий фокус: Фаза 1 — Backend Foundation*

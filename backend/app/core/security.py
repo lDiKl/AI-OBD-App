@@ -5,8 +5,11 @@ import firebase_admin
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db
 
 _firebase_initialized = False
 
@@ -44,3 +47,36 @@ async def verify_firebase_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
+
+
+async def get_current_user(
+    token_data: dict = Depends(verify_firebase_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify Firebase token → look up (or create) User row in DB.
+    Returns the User ORM object.
+    """
+    from app.models.user import User  # avoid circular import at module level
+
+    firebase_uid = token_data.get("uid")
+    if not firebase_uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token claims")
+
+    result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # First sign-in — auto-provision the user row
+        user = User(
+            firebase_uid=firebase_uid,
+            email=token_data.get("email", ""),
+            subscription_status="free",
+            region="EU",
+            language="en",
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    return user
