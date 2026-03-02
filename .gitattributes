@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repository
+* text=auto eol=lf
+
+# Binary files — no line ending conversion
+*.csv binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.apk binary
+*.aab binary
+*.pdf binary
+*.keystore binary

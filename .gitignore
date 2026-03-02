@@ -1,0 +1,70 @@
+# ============================================================
+# Android (mobile-b2c / mobile-b2b)
+# ============================================================
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+google-services.json
+
+# ============================================================
+# Python / FastAPI (backend/)
+# ============================================================
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+.eggs/
+.env
+.venv/
+venv/
+env/
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# ============================================================
+# React / Node (web/)
+# ============================================================
+node_modules/
+dist/
+.next/
+out/
+.env.local
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================
+# Secrets (never commit these)
+# ============================================================
+*.pem
+*.key
+*.p12
+*.keystore
+serviceAccountKey.json
+firebase-adminsdk*.json
+.env*
+!.env.example
+
+# ============================================================
+# OS / IDE
+# ============================================================
+Thumbs.db
+.vscode/settings.json
+.idea/workspace.xml
