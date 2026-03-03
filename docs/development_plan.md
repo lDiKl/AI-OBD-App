@@ -118,11 +118,14 @@
 
 ### 2.4 OBD Scan → Backend
 
-- [ ] Retrofit `ScanApiService` → `POST /api/v1/b2c/scan/analyze`
-- [ ] Маппер `ObdScanResult` → `ScanRequest` (с vehicle_id, mileage, freeze_frame)
-- [ ] Обновить `ScannerViewModel`: после OBD скана → вызвать API → `ScanState.AnalysisReady`
-- [ ] Экран результатов (новый): severity badge + can_drive + cost range + AI объяснение
-- [ ] Кнопка "Unlock AI explanation" для free tier → переход на экран подписки (заглушка пока)
+- [x] Retrofit `ScanApiService` + DTOs (FreezeFrameRequest, ScannedCodeRequest, ScanAnalyzeResponse)
+- [x] `ScanRepository` — маппер `ObdScanResult` → `ScanAnalyzeRequest`
+- [x] `NetworkModule` — snake_case Gson naming policy (camelCase ↔ snake_case автоматически)
+- [x] `ScannerViewModel` — новые состояния: `Analyzing`, `AnalysisReady`; inject VehicleRepository
+- [x] `ScannerScreen` — "Analyze with AI" кнопка после OBD скана; `Analyzing` loading state
+- [x] `AnalysisResultContent` — overall risk card + per-code severity badge + can_drive
+- [x] Premium: AI объяснение + main_causes + recommended_action
+- [x] Free tier: upsell блок "Upgrade to Premium"
 
 ### 2.5 История сканов
 

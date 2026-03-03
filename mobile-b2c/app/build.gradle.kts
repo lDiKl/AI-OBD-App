@@ -20,7 +20,7 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000\"") // emulator localhost
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.0.174:8000\"") // PC Wi-Fi IP — change if needed
         }
         release {
             isMinifyEnabled = true

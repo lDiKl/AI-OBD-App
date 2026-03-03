@@ -15,11 +15,13 @@ object ObdResponseParser {
     /**
      * Parse Mode 03 response into a list of DTC codes.
      *
-     * Example raw response (spaces stripped): "430133000000"
+     * Example raw response (spaces stripped): "43030000000000"
      *   43 = mode 03 response marker
-     *   01 = number of DTCs
-     *   33 00 = DTC bytes → "P0300"
-     *   00 00, 00 00 = padding (no more codes)
+     *   03 00 = DTC bytes → "P0300"
+     *   00 00, 00 00, 00 00 = padding (no more codes)
+     *
+     * Note: ELM327 does NOT include a count byte after 43.
+     * DTC pairs start immediately after the "43" prefix.
      */
     fun parseDtcCodes(raw: String): List<DtcCode> {
         val cleaned = raw.trim().uppercase().replace(" ", "")
@@ -27,11 +29,11 @@ object ObdResponseParser {
         // Sanity check — must start with mode 03 response byte "43"
         if (!cleaned.startsWith("43") || cleaned.length < 4) return emptyList()
 
-        // Skip "43" header + next byte (number of codes — we just parse all pairs)
+        // DTC pairs start immediately after the "43" header — no count byte
         val payload = cleaned.removePrefix("43")
 
-        // Each DTC is 2 bytes = 4 hex chars; skip the count byte (first 2 chars)
-        val dtcHex = payload.drop(2)
+        // Each DTC is 2 bytes = 4 hex chars
+        val dtcHex = payload
 
         val codes = mutableListOf<DtcCode>()
         var i = 0

@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,17 +39,22 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.driverai.b2c.BuildConfig
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.driverai.b2c.data.network.CodeResultDto
+import com.driverai.b2c.data.network.ScanAnalyzeResponse
 import com.driverai.b2c.data.obd.models.DtcCode
 import com.driverai.b2c.data.obd.models.FreezeFrameData
 import com.driverai.b2c.data.obd.models.ObdScanResult
@@ -61,7 +69,6 @@ fun ScannerScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    // Permission launcher for BLUETOOTH_CONNECT (required on API 31+)
     val btPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -94,7 +101,10 @@ fun ScannerScreen(
                         } else {
                             viewModel.onStartScan()
                         }
-                    }
+                    },
+                    onEmulatorClick = if (BuildConfig.DEBUG) {
+                        { viewModel.onConnectToEmulator() }
+                    } else null,
                 )
                 is ScanState.RequestingPermission -> LoadingContent("Requesting permission…")
                 is ScanState.SelectingDevice -> DeviceListContent(
@@ -104,7 +114,16 @@ fun ScannerScreen(
                 )
                 is ScanState.Connecting -> LoadingContent("Connecting to adapter…")
                 is ScanState.Scanning -> LoadingContent("Reading OBD data…")
-                is ScanState.Success -> ResultContent(result = s.result)
+                is ScanState.Success -> OBDResultContent(
+                    result = s.result,
+                    onAnalyze = { viewModel.onAnalyzeWithAI() },
+                    onScanAgain = { viewModel.onScanAgain() },
+                )
+                is ScanState.Analyzing -> LoadingContent("Analyzing with AI…")
+                is ScanState.AnalysisReady -> AnalysisResultContent(
+                    analysis = s.analysis,
+                    onScanAgain = { viewModel.onScanAgain() },
+                )
                 is ScanState.Error -> ErrorContent(
                     message = s.message,
                     onRetry = { viewModel.onRetry() }
@@ -114,10 +133,193 @@ fun ScannerScreen(
     }
 }
 
-// --- Sub-composables ---
+// --- OBD raw result (after BT scan, before AI analysis) ---
 
 @Composable
-private fun IdleContent(onScanClick: () -> Unit) {
+private fun OBDResultContent(
+    result: ObdScanResult,
+    onAnalyze: () -> Unit,
+    onScanAgain: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (result.dtcCodes.isEmpty()) {
+            item { NoDtcCard() }
+        } else {
+            item {
+                Text(
+                    "${result.dtcCodes.size} fault code(s) found",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            items(result.dtcCodes) { code -> RawDtcCard(code) }
+        }
+
+        result.freezeFrame?.let { ff ->
+            item { FreezeFrameCard(ff) }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (result.dtcCodes.isNotEmpty()) {
+                    Button(
+                        onClick = onAnalyze,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Analyze with AI")
+                    }
+                }
+                OutlinedButton(
+                    onClick = onScanAgain,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Scan Again")
+                }
+            }
+        }
+    }
+}
+
+// --- AI Analysis result ---
+
+@Composable
+private fun AnalysisResultContent(
+    analysis: ScanAnalyzeResponse,
+    onScanAgain: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { OverallRiskCard(analysis) }
+        items(analysis.codes) { code -> AnalysisCodeCard(code) }
+        item {
+            OutlinedButton(
+                onClick = onScanAgain,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Scan Again")
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverallRiskCard(analysis: ScanAnalyzeResponse) {
+    val (bgColor, label) = when (analysis.overallRisk) {
+        "critical" -> MaterialTheme.colorScheme.errorContainer to "CRITICAL — Do NOT drive"
+        "high"     -> Color(0xFFFF8C00).copy(alpha = 0.15f) to "HIGH RISK — Drive with caution"
+        "medium"   -> Color(0xFFFFC107).copy(alpha = 0.15f) to "MEDIUM — Schedule service soon"
+        else       -> MaterialTheme.colorScheme.primaryContainer to "LOW — Vehicle OK"
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = bgColor)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(label, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (analysis.safeToDrive) "Safe to drive" else "Not safe to drive",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (analysis.safeToDrive) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnalysisCodeCard(code: CodeResultDto) {
+    val severityColor = when (code.free.severity) {
+        "critical" -> MaterialTheme.colorScheme.error
+        "high"     -> Color(0xFFE65100)
+        "medium"   -> Color(0xFFF57F17)
+        else       -> Color(0xFF2E7D32)
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    code.code,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    color = severityColor.copy(alpha = 0.15f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        code.free.severity.uppercase(),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = severityColor,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(code.free.description, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Can drive: ${code.free.canDrive.replace('_', ' ')}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // Premium AI content
+            code.premium?.let { ai ->
+                Spacer(Modifier.height(12.dp))
+                Divider()
+                Spacer(Modifier.height(8.dp))
+                Text("AI Analysis", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text(ai.simpleExplanation, style = MaterialTheme.typography.bodySmall)
+                if (ai.mainCauses.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Likely causes:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                    ai.mainCauses.forEachIndexed { i, cause ->
+                        val pct = ai.causesProbability.getOrNull(i)
+                        Text(
+                            "• $cause${if (pct != null) " ($pct%)" else ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Recommended: ${ai.recommendedAction}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            // Free tier upsell
+            if (code.premium == null) {
+                Spacer(Modifier.height(8.dp))
+                Divider()
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Upgrade to Premium for AI explanation, likely causes and repair advice",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+// --- Sub-composables (shared / OBD raw) ---
+
+@Composable
+private fun IdleContent(
+    onScanClick: () -> Unit,
+    onEmulatorClick: (() -> Unit)? = null,
+) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -138,8 +340,10 @@ private fun IdleContent(onScanClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(32.dp))
-        Button(onClick = onScanClick) {
-            Text("Start OBD Scan")
+        Button(onClick = onScanClick) { Text("Start OBD Scan") }
+        if (onEmulatorClick != null) {
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(onClick = onEmulatorClick) { Text("Connect to Emulator (debug)") }
         }
     }
 }
@@ -175,9 +379,7 @@ private fun DeviceListContent(
                 ListItem(
                     headlineContent = { Text(device.name ?: "Unknown device") },
                     supportingContent = { Text(device.address, fontFamily = FontFamily.Monospace) },
-                    leadingContent = {
-                        Icon(Icons.Default.Bluetooth, contentDescription = null)
-                    },
+                    leadingContent = { Icon(Icons.Default.Bluetooth, contentDescription = null) },
                     modifier = Modifier.clickable { onDeviceClick(device) }
                 )
                 Divider()
@@ -185,97 +387,38 @@ private fun DeviceListContent(
         }
         OutlinedButton(
             onClick = onCancel,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text("Cancel")
-        }
-    }
-}
-
-@Composable
-private fun ResultContent(result: ObdScanResult) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        if (result.dtcCodes.isEmpty()) {
-            item { NoDtcCard() }
-        } else {
-            item {
-                Text(
-                    "${result.dtcCodes.size} fault code(s) found",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            items(result.dtcCodes) { code -> DtcCodeCard(code) }
-        }
-
-        result.freezeFrame?.let { ff ->
-            item { FreezeFrameCard(ff) }
-        }
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) { Text("Cancel") }
     }
 }
 
 @Composable
 private fun NoDtcCard() {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             Spacer(Modifier.size(12.dp))
             Column {
                 Text("No fault codes found", fontWeight = FontWeight.Bold)
-                Text("Your vehicle's OBD system reports no stored errors.",
-                    style = MaterialTheme.typography.bodySmall)
+                Text("Your vehicle's OBD system reports no stored errors.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
 }
 
 @Composable
-private fun DtcCodeCard(code: DtcCode) {
+private fun RawDtcCard(code: DtcCode) {
     Card {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                Icons.Default.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(24.dp)
-            )
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
             Spacer(Modifier.size(12.dp))
             Column {
-                Text(
-                    code.raw,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.titleSmall
-                )
+                Text(code.raw, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleSmall)
                 Text(code.description, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    code.type.name.lowercase().replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(code.type.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -298,9 +441,7 @@ private fun FreezeFrameCard(ff: FreezeFrameData) {
 @Composable
 private fun FreezeFrameRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -311,24 +452,13 @@ private fun FreezeFrameRow(label: String, value: String) {
 @Composable
 private fun ErrorContent(message: String, onRetry: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            Icons.Default.Warning,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(48.dp)
-        )
+        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
         Spacer(Modifier.height(16.dp))
-        Text(
-            message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
         Button(onClick = onRetry) { Text("Try Again") }
     }

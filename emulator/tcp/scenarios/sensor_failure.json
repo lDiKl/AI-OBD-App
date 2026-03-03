@@ -1,0 +1,12 @@
+{
+  "name": "sensor_failure",
+  "description": "O2 sensor slow (P0133) + catalyst efficiency low (P0420) + lean bank1 (P0171)",
+  "rpm": 1800,
+  "speed": 65,
+  "coolant_temp": 88,
+  "intake_temp": 30,
+  "throttle": 18,
+  "fuel_level": 55,
+  "battery_voltage": "12.1V",
+  "dtcs": ["0133", "0420", "0171"]
+}

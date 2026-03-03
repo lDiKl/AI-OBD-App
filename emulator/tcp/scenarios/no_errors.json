@@ -1,0 +1,12 @@
+{
+  "name": "no_errors",
+  "description": "Idle engine, fully warm, no faults",
+  "rpm": 800,
+  "speed": 0,
+  "coolant_temp": 85,
+  "intake_temp": 22,
+  "throttle": 0,
+  "fuel_level": 80,
+  "battery_voltage": "12.6V",
+  "dtcs": []
+}

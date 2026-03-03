@@ -43,7 +43,19 @@ class VehicleRepository @Inject constructor(
             dao.upsert(entity)
             Result.success(entity)
         } catch (e: Exception) {
-            Result.failure(e)
+            // Backend unavailable — save locally with a generated UUID.
+            // Will sync to server when backend becomes available.
+            val entity = VehicleEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                make = make,
+                model = model,
+                year = year,
+                engineType = engineType,
+                vin = vin,
+                mileage = mileage,
+            )
+            dao.upsert(entity)
+            Result.success(entity)
         }
     }
 

@@ -1,0 +1,12 @@
+{
+  "name": "normal",
+  "description": "Normal driving, engine warm, no faults",
+  "rpm": 2500,
+  "speed": 80,
+  "coolant_temp": 90,
+  "intake_temp": 25,
+  "throttle": 22,
+  "fuel_level": 65,
+  "battery_voltage": "12.4V",
+  "dtcs": []
+}

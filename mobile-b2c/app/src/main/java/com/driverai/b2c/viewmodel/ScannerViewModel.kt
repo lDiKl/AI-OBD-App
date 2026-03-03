@@ -6,55 +6,54 @@ import android.bluetooth.BluetoothDevice
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.driverai.b2c.data.network.ScanAnalyzeResponse
 import com.driverai.b2c.data.obd.ObdConnectionManager
 import com.driverai.b2c.data.obd.models.ObdScanResult
+import com.driverai.b2c.data.scan.ScanRepository
+import com.driverai.b2c.data.vehicle.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** UI state for the OBD scanner screen */
 sealed class ScanState {
-    /** Initial state — nothing started yet */
     object Idle : ScanState()
-
-    /** Bluetooth permission is being requested by the UI */
     object RequestingPermission : ScanState()
-
-    /** User should pick one of these paired devices */
     data class SelectingDevice(val pairedDevices: List<BluetoothDevice>) : ScanState()
-
-    /** Socket is being opened and ELM327 init is running */
     object Connecting : ScanState()
-
-    /** OBD commands are being sent (Mode 03, Mode 02) */
     object Scanning : ScanState()
-
-    /** Scan finished successfully */
+    /** OBD scan done — user can now trigger AI analysis */
     data class Success(val result: ObdScanResult) : ScanState()
-
-    /** Something went wrong at any step */
+    /** Backend API call in progress */
+    object Analyzing : ScanState()
+    /** Full analysis from backend received */
+    data class AnalysisReady(val analysis: ScanAnalyzeResponse) : ScanState()
     data class Error(val message: String) : ScanState()
 }
+
+private const val EMULATOR_HOST = "192.168.0.174"  // PC Wi-Fi IP — change if needed
+private const val EMULATOR_PORT = 35000
+
+private enum class ConnectionType { NONE, BLUETOOTH, TCP }
 
 @HiltViewModel
 class ScannerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val obdConnectionManager: ObdConnectionManager
+    private val obdConnectionManager: ObdConnectionManager,
+    private val scanRepository: ScanRepository,
+    private val vehicleRepository: VehicleRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ScanState>(ScanState.Idle)
     val state: StateFlow<ScanState> = _state.asStateFlow()
 
-    /**
-     * Entry point — called when the user taps "Start OBD Scan".
-     * Checks Bluetooth availability and lists paired devices.
-     * The UI is responsible for requesting BLUETOOTH_CONNECT permission
-     * before calling this, or calling [onPermissionDenied] if denied.
-     */
+    private var lastConnectionType = ConnectionType.NONE
+    private var lastDeviceAddress = ""
+
     @SuppressLint("MissingPermission")
     fun onStartScan() {
         val adapter = BluetoothAdapter.getDefaultAdapter()
@@ -66,24 +65,19 @@ class ScannerViewModel @Inject constructor(
             _state.value = ScanState.Error("Please enable Bluetooth and try again")
             return
         }
-
         val paired = adapter.bondedDevices.toList()
         if (paired.isEmpty()) {
             _state.value = ScanState.Error("No paired Bluetooth devices found.\nPair your ELM327 adapter in Android Bluetooth settings first.")
             return
         }
-
         _state.value = ScanState.SelectingDevice(paired)
     }
 
-    /**
-     * Called when the user taps a device in the list.
-     * Opens a BT connection then immediately runs the full OBD scan.
-     */
     fun onDeviceSelected(deviceAddress: String) {
+        lastConnectionType = ConnectionType.BLUETOOTH
+        lastDeviceAddress = deviceAddress
         viewModelScope.launch {
             _state.value = ScanState.Connecting
-
             val connectResult = obdConnectionManager.connect(deviceAddress)
             if (connectResult.isFailure) {
                 _state.value = ScanState.Error(
@@ -91,9 +85,7 @@ class ScannerViewModel @Inject constructor(
                 )
                 return@launch
             }
-
             _state.value = ScanState.Scanning
-
             try {
                 val result = obdConnectionManager.runFullScan()
                 _state.value = ScanState.Success(result)
@@ -105,16 +97,71 @@ class ScannerViewModel @Inject constructor(
         }
     }
 
-    /** Called when the user taps "Try Again" from the Error state */
-    fun onRetry() {
-        _state.value = ScanState.Idle
+    /**
+     * Called after OBD scan — sends result to backend for AI analysis.
+     * Uses the first registered vehicle. If none registered, shows error.
+     */
+    fun onAnalyzeWithAI() {
+        val obdResult = (state.value as? ScanState.Success)?.result ?: return
+        viewModelScope.launch {
+            _state.value = ScanState.Analyzing
+
+            val vehicles = vehicleRepository.vehicles.first()
+            if (vehicles.isEmpty()) {
+                _state.value = ScanState.Error("Please add a vehicle in the \"My Cars\" tab first")
+                return@launch
+            }
+
+            val vehicle = vehicles.first()
+            val result = scanRepository.analyzeOBDResult(
+                obdResult = obdResult,
+                vehicleId = vehicle.id,
+                mileage = vehicle.mileage ?: 0,
+            )
+
+            result.fold(
+                onSuccess = { _state.value = ScanState.AnalysisReady(it) },
+                onFailure = { _state.value = ScanState.Error("Analysis failed: ${it.localizedMessage}") },
+            )
+        }
     }
 
-    /** Called when the user cancels device selection */
-    fun onCancelSelection() {
-        _state.value = ScanState.Idle
+    /** Connect to local TCP emulator (debug only). Phone and PC must be on same Wi-Fi. */
+    fun onConnectToEmulator() {
+        lastConnectionType = ConnectionType.TCP
+        viewModelScope.launch {
+            _state.value = ScanState.Connecting
+            val result = obdConnectionManager.connectTcp(EMULATOR_HOST, EMULATOR_PORT)
+            if (result.isFailure) {
+                _state.value = ScanState.Error(
+                    "Emulator connection failed: ${result.exceptionOrNull()?.message}\n" +
+                    "Make sure Docker emulator is running and phone is on same Wi-Fi as PC."
+                )
+                return@launch
+            }
+            _state.value = ScanState.Scanning
+            try {
+                val scanResult = obdConnectionManager.runFullScan()
+                _state.value = ScanState.Success(scanResult)
+            } catch (e: Exception) {
+                _state.value = ScanState.Error("Scan failed: ${e.message}")
+            } finally {
+                obdConnectionManager.disconnect()
+            }
+        }
     }
 
+    /** Re-scan using the same connection as before (Bluetooth or TCP emulator). */
+    fun onScanAgain() {
+        when (lastConnectionType) {
+            ConnectionType.BLUETOOTH -> onDeviceSelected(lastDeviceAddress)
+            ConnectionType.TCP       -> onConnectToEmulator()
+            ConnectionType.NONE      -> _state.value = ScanState.Idle
+        }
+    }
+
+    fun onRetry() { _state.value = ScanState.Idle }
+    fun onCancelSelection() { _state.value = ScanState.Idle }
     fun onPermissionDenied() {
         _state.value = ScanState.Error("Bluetooth permission is required to connect to the OBD adapter")
     }

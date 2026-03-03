@@ -1,0 +1,12 @@
+{
+  "name": "misfire",
+  "description": "Engine misfire on cylinder 1 (P0301) + random misfires (P0300)",
+  "rpm": 850,
+  "speed": 0,
+  "coolant_temp": 96,
+  "intake_temp": 28,
+  "throttle": 5,
+  "fuel_level": 40,
+  "battery_voltage": "11.8V",
+  "dtcs": ["0301", "0300"]
+}

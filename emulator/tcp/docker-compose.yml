@@ -1,0 +1,14 @@
+services:
+  elm327-emulator:
+    build: .
+    container_name: elm327-emulator
+    ports:
+      - "35000:35000"
+    volumes:
+      # Mount scenarios folder so you can edit JSONs without rebuild
+      - ./scenarios:/app/scenarios:ro
+    environment:
+      - SCENARIO=normal        # normal | misfire | sensor_failure | no_errors
+      - PORT=35000
+      - LOG_LEVEL=INFO
+    restart: unless-stopped

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only manifest overlay.
+    Allows cleartext HTTP traffic so the app can reach the local dev backend
+    (http://192.168.0.174:8000) without a certificate.
+    This file is NOT included in release builds.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

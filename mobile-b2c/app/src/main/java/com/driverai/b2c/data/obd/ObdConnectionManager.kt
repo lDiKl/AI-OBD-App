@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.Socket
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +36,7 @@ class ObdConnectionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private var socket: BluetoothSocket? = null
+    private var tcpSocket: Socket? = null
     private var outputStream: OutputStream? = null
     private var inputStream: InputStream? = null
 
@@ -148,22 +150,47 @@ class ObdConnectionManager @Inject constructor(
         result
     }
 
-    /** Close the Bluetooth socket and release all streams. */
+    /**
+     * Connect to the TCP emulator (debug only).
+     * Phone and PC must be on the same Wi-Fi network.
+     */
+    suspend fun connectTcp(host: String, port: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            disconnect()
+            Log.d(TAG, "Connecting to TCP emulator $host:$port…")
+            val newSocket = Socket(host, port)
+            tcpSocket = newSocket
+            outputStream = newSocket.getOutputStream()
+            inputStream = newSocket.getInputStream()
+            Log.d(TAG, "TCP connected. Running ELM327 init…")
+            initialize()
+            Log.d(TAG, "Init complete.")
+            Result.success(Unit)
+        } catch (e: IOException) {
+            Log.e(TAG, "TCP connection failed: ${e.message}")
+            disconnect()
+            Result.failure(e)
+        }
+    }
+
+    /** Close the Bluetooth/TCP socket and release all streams. */
     fun disconnect() {
         try {
             outputStream?.close()
             inputStream?.close()
             socket?.close()
+            tcpSocket?.close()
         } catch (e: IOException) {
             Log.w(TAG, "Error closing socket: ${e.message}")
         } finally {
             outputStream = null
             inputStream = null
             socket = null
+            tcpSocket = null
         }
     }
 
-    val isConnected: Boolean get() = socket?.isConnected == true
+    val isConnected: Boolean get() = socket?.isConnected == true || tcpSocket?.isConnected == true
 
     /**
      * Run the ELM327 initialization sequence.
