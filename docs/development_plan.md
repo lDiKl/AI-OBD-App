@@ -22,7 +22,7 @@
 | mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
-| web/ Phase 3 | ⬜ Не начато |
+| web/ Phase 3.1–3.5 | ✅ Backend + Web UI готовы, работает в Docker |
 
 ---
 
@@ -172,49 +172,40 @@
 
 ### 3.3 React проект setup
 
-- [ ] `web/` — Vite + React + TypeScript init
-- [ ] Tailwind CSS + shadcn/ui компоненты
-- [ ] TanStack Query — глобальный QueryClient
-- [ ] Firebase Auth JS SDK — login + token refresh
-- [ ] React Router — layout + protected routes
-- [ ] Axios instance с `Authorization: Bearer {token}` interceptor
-- [ ] TypeScript типы из `docs/api_contract.md`
+- [x] `web/` — Vite + React + TypeScript init
+- [x] Tailwind CSS компоненты
+- [x] TanStack Query — глобальный QueryClient
+- [x] Firebase Auth JS SDK — login + token refresh (AuthContext, единственный onAuthStateChanged)
+- [x] React Router — layout + protected routes (AuthGuard + ShopGuard)
+- [x] Axios instance с `Authorization: Bearer {token}` interceptor + пустой baseURL (Vite proxy)
+- [x] TypeScript типы из `docs/api_contract.md`
+- [x] Docker: `web/Dockerfile` + `docker-compose.yml` (все сервисы) + `web_node_modules` volume
+- [x] Vite proxy: `autoRewrite: true` — корректная обработка 307 редиректов FastAPI
 
 ### 3.4 Web Auth + Shop Setup
 
-- [ ] Страница Login (email + Google)
-- [ ] Страница Register Shop (после первого входа если нет shop)
-- [ ] Auth context + `useCurrentUser` hook
-- [ ] Shop Profile страница (`GET/PUT /api/v1/b2b/shop/profile`)
+- [x] Страница Login (email/password + Register toggle)
+- [x] Страница ShopSetup (после первого входа если нет shop)
+- [x] AuthContext + `useAuth` hook (singleton subscription, нет race conditions)
+- [x] `useShop` hook — `GET /api/v1/b2b/shop/profile`, `isNotRegistered` на 403
+- [x] Shop Profile страница в Settings (`GET/PUT /api/v1/b2b/shop/profile`)
 
 ### 3.5 Web Dashboard — главные страницы
 
-- [ ] Layout: sidebar + header + main content
-- [ ] Dashboard (главная): активные кейсы + кнопка "Новая диагностика"
-- [ ] Страница "Новая диагностика":
-  - [ ] Форма: make/model/year/engine/mileage/vin
-  - [ ] Поле ввода DTC кодов (multiple, comma-separated или список)
-  - [ ] Поле симптомов (textarea)
-  - [ ] Кнопка "Analyze" → вызов `/b2b/diagnostic/analyze`
-  - [ ] Loading state + результат
-- [ ] Страница результатов AI анализа:
-  - [ ] Probable causes (ranked, с % уверенности + reasoning)
-  - [ ] Diagnostic checklist (интерактивный, отметить выполненное)
-  - [ ] Кнопка "Сохранить как кейс"
-  - [ ] Кнопка "Сгенерировать отчёт"
-- [ ] Список кейсов: поиск + фильтр по статусу/коду/модели
-- [ ] Страница кейса: полный анализ + статус + заметки
+- [x] Layout: sidebar + header + main content (Outlet pattern)
+- [x] Dashboard: stats cards + recent cases
+- [x] Страница "Новая диагностика": форма (make/model/year/engine/mileage/VIN + DTC коды + симптомы + freeze frame) → AI анализ → результаты
+- [x] Probable causes (ranked, с % + reasoning), diagnostic checklist, parts, labor estimate
+- [x] Кнопка "Save as case" → создаёт case + redirect
+- [x] Список кейсов: поиск + фильтр по статусу
+- [x] Страница кейса: 3 таба (Diagnosis, Report, Estimate) + смена статуса + удаление
 
 ### 3.6 Report + Estimate в вебе
 
-- [ ] Страница генерации отчёта: AI текст + редактор (editable)
-- [ ] Кнопка "Скачать PDF отчёт"
-- [ ] Estimate Builder:
-  - [ ] Добавление запчастей (название, цена, кол-во)
-  - [ ] Labor hours (AI предложение, редактируемое)
-  - [ ] Markup % + итог
-  - [ ] Кнопка "Скачать PDF смету"
-- [ ] `POST /api/v1/b2b/cases/{id}/estimate` — сохранить смету
+- [x] Tab "Report": генерация AI текста отчёта (`POST .../report/generate`)
+- [x] Tab "Estimate": AI подсказка по смете (`POST .../estimate/suggest`)
+- [ ] Кнопка "Скачать PDF отчёт" — требует 3.2 (PDF backend)
+- [ ] Кнопка "Скачать PDF смету" — требует 3.2 (PDF backend)
 
 **✅ Milestone 3 достигнут, когда:** Веб-дашборд → ввод кодов → AI анализ → PDF отчёт
 

@@ -62,6 +62,7 @@ firebase-adminsdk*.json
 firebase-credentials.json
 .env*
 !.env.example
+!.env.local.example
 
 # ============================================================
 # OS / IDE

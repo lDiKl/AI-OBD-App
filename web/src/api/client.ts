@@ -2,7 +2,8 @@ import axios from 'axios'
 import { getAuth } from 'firebase/auth'
 
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
+  // Empty baseURL → relative paths → Vite proxy routes /api/* to API container
+  baseURL: '',
 })
 
 // Attach Firebase ID token to every request

@@ -1,0 +1,79 @@
+services:
+
+  # ─── Infrastructure ───────────────────────────────────────────────────────
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: obd_db
+      POSTGRES_USER: obd_user
+      POSTGRES_PASSWORD: obd_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U obd_user -d obd_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend API ──────────────────────────────────────────────────────────
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    # Secrets (ANTHROPIC_API_KEY, FIREBASE creds, etc.) come from backend/.env
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # Docker service names override any localhost URLs from .env
+      DATABASE_URL: postgresql+asyncpg://obd_user:obd_pass@postgres:5432/obd_db
+      REDIS_URL: redis://redis:6379/0
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+      ENVIRONMENT: development
+      DEBUG: "true"
+      ALLOWED_ORIGINS: '["http://localhost:5173"]'
+    volumes:
+      - ./backend:/app          # live reload: source changes reflect instantly
+      - ./docs:/docs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─── Web Frontend (ShopAI B2B) ────────────────────────────────────────────
+
+  web:
+    build: ./web
+    ports:
+      - "5173:5173"
+    environment:
+      # Vite proxy forwards /api/* to this URL (Docker internal network)
+      API_URL: http://api:8000
+    # Firebase Web SDK config comes from web/.env.local
+    env_file:
+      - path: ./web/.env.local
+        required: false
+    volumes:
+      - ./web:/app                    # live reload: source changes reflected instantly
+      - web_node_modules:/app/node_modules  # node_modules lives in Docker, not on host
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  web_node_modules:    # persists node_modules across container restarts

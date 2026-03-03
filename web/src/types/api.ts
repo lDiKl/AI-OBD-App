@@ -1,17 +1,20 @@
-// TypeScript types matching docs/api_contract.md
+// TypeScript types matching the B2B API
 
-export interface DiagnosticAnalyzeRequest {
-  vehicle_info: {
-    make: string
-    model: string
-    year: number
-    engine_type: string
-    mileage: number
-  }
-  codes: string[]
-  symptoms?: string
-  freeze_frame?: FreezeFrame
-  save_as_case?: boolean
+export interface Shop {
+  id: string
+  name: string
+  address: string
+  phone: string
+  email: string
+  subscription_tier: 'basic' | 'pro'
+  verified: boolean
+}
+
+export interface ShopSetupRequest {
+  shop_name: string
+  address?: string
+  phone?: string
+  email?: string
 }
 
 export interface FreezeFrame {
@@ -23,6 +26,22 @@ export interface FreezeFrame {
   fuel_trim_short_pct?: number
   fuel_trim_long_pct?: number
   map_kpa?: number
+}
+
+export interface VehicleInfo {
+  make: string
+  model: string
+  year: number
+  engine_type: string
+  mileage: number
+}
+
+export interface DiagnosticAnalyzeRequest {
+  vehicle_info: VehicleInfo
+  codes: string[]
+  symptoms?: string
+  freeze_frame?: FreezeFrame
+  save_as_case?: boolean
 }
 
 export interface ProbableCause {
@@ -51,28 +70,45 @@ export interface DiagnosticAnalyzeResponse {
   additional_notes: string
 }
 
-export interface Case {
-  id: string
-  vehicle_info: DiagnosticAnalyzeRequest['vehicle_info']
-  input_codes: string[]
-  symptoms_text: string
-  ai_result: DiagnosticAnalyzeResponse | null
-  client_report_text: string
-  estimate: EstimateData | null
-  status: 'open' | 'in_progress' | 'completed'
-  created_at: string
+export interface EstimatePart {
+  name: string
+  quantity: number
+  unit_price: number
+  note?: string
 }
 
 export interface EstimateData {
   parts: EstimatePart[]
   labor_hours: number
   labor_rate_eur: number
-  total_eur: number
+  markup_pct: number
+  parts_total: number
+  labor_total: number
+  subtotal: number
+  total: number
+  currency: string
+  notes?: string
 }
 
-export interface EstimatePart {
-  name: string
-  part_number?: string
-  price_eur: number
-  quantity: number
+export interface Case {
+  id: string
+  shop_id: string
+  vehicle_info: VehicleInfo
+  input_codes: string[]
+  symptoms_text: string
+  ai_result: DiagnosticAnalyzeResponse | Record<string, never>
+  client_report_text: string
+  estimate: EstimateData | Record<string, never>
+  status: 'open' | 'in_progress' | 'completed'
+  created_at: string
+}
+
+export interface ReportOut {
+  report_title: string
+  issue_summary: string
+  what_we_did: string
+  why_it_matters: string
+  parts_replaced: string[]
+  next_steps: string
+  disclaimer: string
 }
