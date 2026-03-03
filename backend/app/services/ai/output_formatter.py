@@ -45,5 +45,20 @@ def _get_fallback(prompt_type: str) -> dict:
             "urgency": "within_week",
             "additional_notes": "AI analysis failed. Manual diagnostic required.",
         },
+        "b2b_report": {
+            "report_title": "Vehicle Diagnostic Report",
+            "issue_summary": "A diagnostic issue was identified during inspection.",
+            "what_we_did": "Diagnostic inspection was performed.",
+            "why_it_matters": "Addressing this issue helps maintain vehicle reliability.",
+            "parts_replaced": [],
+            "next_steps": "Please contact us to discuss the repair.",
+            "disclaimer": "This report is based on diagnostic data obtained during inspection.",
+        },
+        "b2b_estimate": {
+            "suggested_parts": [],
+            "suggested_labor_hours": 1.0,
+            "labor_notes": "Estimate requires manual review.",
+            "typical_total_range": {"min": 0, "max": 0, "currency": "EUR"},
+        },
     }
     return fallbacks.get(prompt_type, {})

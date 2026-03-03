@@ -49,6 +49,34 @@ async def verify_firebase_token(
         )
 
 
+async def get_current_shop_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify Firebase token → find ShopUser row.
+    Returns (ShopUser, Shop). Raises 403 if not registered as a shop user.
+    """
+    from app.models.shop import Shop, ShopUser  # avoid circular import
+
+    token_data = await verify_firebase_token(credentials)
+    firebase_uid = token_data.get("uid")
+
+    result = await db.execute(select(ShopUser).where(ShopUser.firebase_uid == firebase_uid))
+    shop_user = result.scalar_one_or_none()
+
+    if shop_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not registered as a shop user. Use POST /api/v1/b2b/shop/setup to register.",
+        )
+
+    result = await db.execute(select(Shop).where(Shop.id == shop_user.shop_id))
+    shop = result.scalar_one()
+
+    return shop_user, shop
+
+
 async def get_current_user(
     token_data: dict = Depends(verify_firebase_token),
     db: AsyncSession = Depends(get_db),

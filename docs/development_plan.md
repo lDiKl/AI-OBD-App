@@ -16,10 +16,13 @@
 | Monorepo scaffold | ✅ Готово (commit a4f4c62) |
 | mobile-b2c — OBD Bluetooth слой | ✅ Готово |
 | mobile-b2c — Firebase Auth + Navigation | ✅ Готово, вход/выход работает |
+| mobile-b2c — Vehicle Management | ✅ Room + API sync + offline fallback |
+| mobile-b2c — OBD → AI Analysis | ✅ Scan → backend → AI результат на экране |
+| mobile-b2c — Scan History | ✅ Room persistence + History + Detail экраны |
 | mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
-| web/ | ⬜ Не начато |
+| web/ Phase 3 | ⬜ Не начато |
 
 ---
 
@@ -147,13 +150,17 @@
 
 ### 3.1 B2B Backend endpoints
 
-- [ ] B2B Auth middleware — `ShopUser` вместо `User`, привязка к `shop_id`
-- [ ] `POST /api/v1/b2b/auth/register-shop` — регистрация сервиса
-- [ ] `services/ai_service_b2b.py` — B2B промпт: ranked causes + diagnostic checklist
-- [ ] `POST /api/v1/b2b/diagnostic/analyze` — полный B2B анализ (probable_causes, checklist, labor_hours)
-- [ ] `POST /api/v1/b2b/cases/{id}/report/generate` — AI генерация текста отчёта для клиента
-- [ ] `GET/POST /api/v1/b2b/cases` — создание и список кейсов
-- [ ] `GET/PUT /api/v1/b2b/cases/{id}` — деталb и обновление статуса
+- [x] Alembic migration 0002 — таблицы `shops`, `shop_users`, `diagnostic_cases`
+- [x] B2B Auth middleware — `get_current_shop_user()` → `(ShopUser, Shop)`, 403 если нет регистрации
+- [x] `POST /api/v1/b2b/shop/setup` — регистрация сервиса (создаёт Shop + ShopUser owner)
+- [x] `GET/PUT /api/v1/b2b/shop/profile` — профиль сервиса
+- [x] B2B AI functions в `ai_service.py` — Prompt 3 (Claude Sonnet), Prompt 4 (Sonnet), Prompt 5 (Haiku)
+- [x] `POST /api/v1/b2b/diagnostic/analyze` — полный B2B анализ (probable_causes, checklist, labor_hours)
+- [x] `POST /api/v1/b2b/cases/{id}/report/generate` — AI генерация текста отчёта для клиента
+- [x] `GET/POST /api/v1/b2b/cases` — создание и список кейсов
+- [x] `GET/PUT/DELETE /api/v1/b2b/cases/{id}` — детали и обновление статуса
+- [x] `POST /api/v1/b2b/cases/{id}/estimate/suggest` — AI подсказка по смете (Prompt 5)
+- [x] `PUT /api/v1/b2b/cases/{id}/estimate` — сохранить смету механика (с расчётом итогов)
 
 ### 3.2 PDF генерация
 
@@ -307,5 +314,5 @@
 
 ---
 
-*Последнее обновление: 2026-03-02*
+*Последнее обновление: 2026-03-03*
 *Текущий фокус: Фаза 3 — B2B Web MVP*

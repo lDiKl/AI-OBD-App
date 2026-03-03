@@ -6,7 +6,8 @@
       "Bash(ls *.toml)",
       "Bash(powershell -NoProfile -Command \"Get-Command python* -ErrorAction SilentlyContinue | Select-Object Name, Source\")",
       "Bash(powershell -NoProfile -Command \"& ''C:\\\\Users\\\\dmytr\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python3.14.exe'' --version\")",
-      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"c:/Users/dmytr/Projects/AI OBD App/emulator/fix_path.ps1\")"
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"c:/Users/dmytr/Projects/AI OBD App/emulator/fix_path.ps1\")",
+      "Bash(\"c:/Users/dmytr/Projects/AI OBD:*)"
     ]
   }
 }
