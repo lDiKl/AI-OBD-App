@@ -59,6 +59,7 @@ yarn-error.log*
 *.keystore
 serviceAccountKey.json
 firebase-adminsdk*.json
+firebase-credentials.json
 .env*
 !.env.example
 

@@ -23,4 +23,10 @@ interface VehicleDao {
 
     @Query("DELETE FROM vehicles")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM vehicles WHERE is_synced = 0")
+    suspend fun getUnsynced(): List<VehicleEntity>
+
+    @Query("DELETE FROM vehicles WHERE is_synced = 1")
+    suspend fun deleteSynced()
 }

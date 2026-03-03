@@ -3,6 +3,7 @@ package com.driverai.b2c.di
 import android.content.Context
 import androidx.room.Room
 import com.driverai.b2c.data.db.AppDatabase
+import com.driverai.b2c.data.scan.ScanHistoryDao
 import com.driverai.b2c.data.vehicle.VehicleDao
 import dagger.Module
 import dagger.Provides
@@ -24,4 +25,7 @@ object DatabaseModule {
 
     @Provides
     fun provideVehicleDao(db: AppDatabase): VehicleDao = db.vehicleDao()
+
+    @Provides
+    fun provideScanHistoryDao(db: AppDatabase): ScanHistoryDao = db.scanHistoryDao()
 }

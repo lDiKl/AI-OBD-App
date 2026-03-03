@@ -129,10 +129,13 @@
 
 ### 2.5 История сканов
 
-- [ ] Room таблица `ScanSessionEntity` + `ErrorOccurrenceEntity`
-- [ ] Синхронизация: при получении результата от API → сохранить в Room
-- [ ] Экран "История" — `LazyColumn` сессий по датам
-- [ ] Экран деталей сессии — все коды + AI объяснения
+- [x] Room таблицы `ScanSessionEntity` + `ErrorOccurrenceEntity` + `ScanHistoryDao`
+- [x] `AppDatabase` v2 — добавлены новые entities, `fallbackToDestructiveMigration()`
+- [x] `ScanRepository` — после успешного API ответа сохраняет сессию + коды в Room
+- [x] `HistoryViewModel` — `StateFlow<List<ScanSessionWithOccurrences>>` из Room
+- [x] `HistoryScreen` — LazyColumn сессий с risk badge, датой, кол-вом кодов, кнопкой удаления
+- [x] `ScanDetailScreen` — детали сессии: все коды + AI объяснения (premium) из Room
+- [x] `AppNavHost` — третья вкладка History в NavigationBar; детальный экран без bottom bar
 
 **✅ Milestone 2 достигнут, когда:** Реальное OBD сканирование → AI объяснение на экране телефона
 
@@ -305,4 +308,4 @@
 ---
 
 *Последнее обновление: 2026-03-02*
-*Текущий фокус: Фаза 2.4 — OBD Scan → Backend*
+*Текущий фокус: Фаза 3 — B2B Web MVP*

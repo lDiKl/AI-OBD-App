@@ -15,11 +15,24 @@ class VehicleRepository @Inject constructor(
     /** Room as single source of truth — UI always observes local DB. */
     val vehicles: Flow<List<VehicleEntity>> = dao.observeAll()
 
-    /** Fetch from backend and sync into Room. */
+    /** Fetch from backend and sync into Room.
+     *  Also pushes any vehicles that were created offline (isSynced=false). */
     suspend fun sync(): Result<Unit> {
         return try {
+            // 1. Push locally-created vehicles to backend
+            val unsynced = dao.getUnsynced()
+            for (local in unsynced) {
+                runCatching {
+                    val dto = api.createVehicle(
+                        VehicleCreateRequest(local.make, local.model, local.year, local.engineType, local.vin, local.mileage)
+                    )
+                    dao.deleteById(local.id)
+                    dao.upsert(dto.toEntity())
+                }
+            }
+            // 2. Pull authoritative list from backend
             val dtos = api.getVehicles()
-            dao.deleteAll()
+            dao.deleteSynced()
             dao.upsertAll(dtos.map { it.toEntity() })
             Result.success(Unit)
         } catch (e: Exception) {
@@ -44,7 +57,7 @@ class VehicleRepository @Inject constructor(
             Result.success(entity)
         } catch (e: Exception) {
             // Backend unavailable — save locally with a generated UUID.
-            // Will sync to server when backend becomes available.
+            // isSynced=false ensures sync() will push it to backend when connectivity returns.
             val entity = VehicleEntity(
                 id = java.util.UUID.randomUUID().toString(),
                 make = make,
@@ -53,6 +66,7 @@ class VehicleRepository @Inject constructor(
                 engineType = engineType,
                 vin = vin,
                 mileage = mileage,
+                isSynced = false,
             )
             dao.upsert(entity)
             Result.success(entity)

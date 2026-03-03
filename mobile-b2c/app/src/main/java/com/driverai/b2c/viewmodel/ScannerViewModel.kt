@@ -115,8 +115,7 @@ class ScannerViewModel @Inject constructor(
             val vehicle = vehicles.first()
             val result = scanRepository.analyzeOBDResult(
                 obdResult = obdResult,
-                vehicleId = vehicle.id,
-                mileage = vehicle.mileage ?: 0,
+                vehicle = vehicle,
             )
 
             result.fold(
