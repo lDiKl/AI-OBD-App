@@ -334,10 +334,10 @@ async def analyze_diagnostic_b2b(ctx: B2BDiagnosticContext) -> dict | None:
         raw = message.content[0].text
         return parse_llm_response(raw, "b2b_diagnostic")
     except anthropic.APIStatusError as e:
-        logger.error("Anthropic API error (B2B diagnostic) %s: %s", e.status_code, e.message)
+        logger.error("Anthropic API error (B2B diagnostic) %s: %s", e.status_code, e.message, exc_info=True)
         return None
     except Exception as e:
-        logger.error("B2B diagnostic AI failed: %s", e)
+        logger.error("B2B diagnostic AI failed: %s", e, exc_info=True)
         return None
 
 
@@ -373,7 +373,7 @@ async def generate_client_report(ctx: B2BReportContext) -> dict | None:
         raw = message.content[0].text
         return parse_llm_response(raw, "b2b_report")
     except Exception as e:
-        logger.error("B2B report AI failed: %s", e)
+        logger.error("B2B report AI failed: %s", e, exc_info=True)
         return None
 
 
@@ -407,5 +407,5 @@ async def suggest_estimate_b2b(ctx: B2BEstimateContext) -> dict | None:
         raw = message.content[0].text
         return parse_llm_response(raw, "b2b_estimate")
     except Exception as e:
-        logger.error("B2B estimate AI failed: %s", e)
+        logger.error("B2B estimate AI failed: %s", e, exc_info=True)
         return None

@@ -2,10 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for asyncpg (C extension) and weasyprint (PDF, Phase 3+)
-# Phase 1-2: only gcc needed for asyncpg compilation
+# System deps for asyncpg (C extension) and weasyprint (PDF generation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
+    libcairo2 \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml .

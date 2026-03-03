@@ -52,4 +52,11 @@ export const b2bApi = {
 
   saveEstimate: (caseId: string, data: object) =>
     client.put(`/api/v1/b2b/cases/${caseId}/estimate`, data).then(r => r.data),
+
+  // ── PDF Downloads ──────────────────────────────────────────────────────────
+  downloadReportPdf: (caseId: string) =>
+    client.get(`/api/v1/b2b/cases/${caseId}/report/pdf`, { responseType: 'blob' }).then(r => r.data),
+
+  downloadEstimatePdf: (caseId: string) =>
+    client.get(`/api/v1/b2b/cases/${caseId}/estimate/pdf`, { responseType: 'blob' }).then(r => r.data),
 }

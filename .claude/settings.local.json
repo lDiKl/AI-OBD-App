@@ -9,7 +9,8 @@
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"c:/Users/dmytr/Projects/AI OBD App/emulator/fix_path.ps1\")",
       "Bash(\"c:/Users/dmytr/Projects/AI OBD:*)",
       "Bash(__NEW_LINE_e95a3f4d2ea4df6d__ cat)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(docker compose restart api)"
     ]
   }
 }

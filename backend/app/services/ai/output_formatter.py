@@ -16,10 +16,10 @@ def parse_llm_response(raw: str, prompt_type: str) -> dict:
         data = json.loads(raw)
         return data
     except (json.JSONDecodeError, ValueError):
-        return _get_fallback(prompt_type)
+        return get_fallback_response(prompt_type)
 
 
-def _get_fallback(prompt_type: str) -> dict:
+def get_fallback_response(prompt_type: str) -> dict:
     """Return a safe fallback response when LLM output is invalid."""
     fallbacks = {
         "b2c_single": {

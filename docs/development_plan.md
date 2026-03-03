@@ -23,6 +23,7 @@
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
 | web/ Phase 3.1–3.5 | ✅ Backend + Web UI готовы, работает в Docker |
+| web/ Phase 3.2 PDF | ✅ WeasyPrint, PDF отчёт + смета генерируются и скачиваются |
 
 ---
 
@@ -164,11 +165,12 @@
 
 ### 3.2 PDF генерация
 
-- [ ] Python библиотека `weasyprint` или `reportlab`
-- [ ] HTML шаблон клиентского отчёта (Jinja2)
-- [ ] HTML шаблон сметы
-- [ ] `GET /api/v1/b2b/cases/{id}/report/pdf` — скачать PDF отчёт
-- [ ] `GET /api/v1/b2b/cases/{id}/estimate/pdf` — скачать PDF смету
+- [x] Python библиотека `weasyprint` — установлена с системными зависимостями в Dockerfile
+- [x] HTML шаблон клиентского отчёта (f-string, `pdf_service.py`)
+- [x] HTML шаблон сметы (таблица деталей + сводка + markup)
+- [x] `GET /api/v1/b2b/cases/{id}/report/pdf` — скачать PDF отчёт
+- [x] `GET /api/v1/b2b/cases/{id}/estimate/pdf` — скачать PDF смету
+- [x] Кнопки "↓ Download PDF" в вебе (Report + Estimate табы)
 
 ### 3.3 React проект setup
 
@@ -204,10 +206,10 @@
 
 - [x] Tab "Report": генерация AI текста отчёта (`POST .../report/generate`)
 - [x] Tab "Estimate": AI подсказка по смете (`POST .../estimate/suggest`)
-- [ ] Кнопка "Скачать PDF отчёт" — требует 3.2 (PDF backend)
-- [ ] Кнопка "Скачать PDF смету" — требует 3.2 (PDF backend)
+- [x] Кнопка "Скачать PDF отчёт" — blob download, открывается в браузере
+- [x] Кнопка "Скачать PDF смету" — blob download, открывается в браузере
 
-**✅ Milestone 3 достигнут, когда:** Веб-дашборд → ввод кодов → AI анализ → PDF отчёт
+**✅ Milestone 3 достигнут:** Веб-дашборд → ввод кодов → AI анализ → PDF отчёт ✅
 
 ---
 
@@ -306,4 +308,4 @@
 ---
 
 *Последнее обновление: 2026-03-03*
-*Текущий фокус: Фаза 3 — B2B Web MVP*
+*Текущий фокус: Фаза 4 — Монетизация (Stripe)*

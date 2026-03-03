@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +10,9 @@ from app.core.database import get_db
 from app.core.security import get_current_shop_user
 from app.models.diagnostic_case import DiagnosticCase
 from app.services.ai.ai_service import B2BReportContext, generate_client_report
-from app.services.ai.output_formatter import parse_llm_response
+from app.services.ai.output_formatter import get_fallback_response
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -67,7 +72,8 @@ async def generate_report(
 
     report_data = await generate_client_report(ctx)
     if report_data is None:
-        report_data = parse_llm_response("{}", "b2b_report")
+        logger.warning("generate_client_report returned None for case %s — using fallback", case_id)
+        report_data = get_fallback_response("b2b_report")
 
     import json
     case.client_report_text = json.dumps(report_data)
@@ -82,11 +88,29 @@ async def download_report_pdf(
     current=Depends(get_current_shop_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Generate and return PDF of client report.
-    PDF generation is implemented in Phase 3.2.
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="PDF generation coming in Phase 3.2",
+    """Download the client report as a PDF file."""
+    shop_user, shop = current
+
+    result = await db.execute(
+        select(DiagnosticCase).where(
+            DiagnosticCase.id == case_id,
+            DiagnosticCase.shop_id == shop.id,
+        )
+    )
+    case = result.scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    if not case.client_report_text:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No report generated yet. Generate the report first.",
+        )
+
+    from app.services.pdf_service import generate_report_pdf  # lazy: weasyprint only needed here
+    pdf_bytes = generate_report_pdf(case, shop)
+    filename = f"report_{case_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

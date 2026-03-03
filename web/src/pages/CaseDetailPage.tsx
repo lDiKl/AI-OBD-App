@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { b2bApi } from '@/api/b2b'
@@ -23,6 +23,24 @@ export default function CaseDetailPage() {
   const [estimateDiagnosis, setEstimateDiagnosis] = useState('')
   const [estimateRepair, setEstimateRepair] = useState('')
   const [estimateSuggestion, setEstimateSuggestion] = useState<Record<string, unknown> | null>(null)
+  const [pdfError, setPdfError] = useState('')
+
+  const handleDownloadPdf = useCallback(async (type: 'report' | 'estimate') => {
+    setPdfError('')
+    try {
+      const blob = type === 'report'
+        ? await b2bApi.downloadReportPdf(id!)
+        : await b2bApi.downloadEstimatePdf(id!)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${type}_${id!.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      setPdfError('Failed to download PDF. Try again.')
+    }
+  }, [id])
 
   const { data: c, isLoading, isError } = useQuery({
     queryKey: ['case', id],
@@ -217,7 +235,16 @@ export default function CaseDetailPage() {
         <div className="space-y-5">
           {c.client_report_text ? (
             <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Client Report (saved)</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Client Report (saved)</h3>
+                <button
+                  onClick={() => handleDownloadPdf('report')}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-blue-200"
+                >
+                  ↓ Download PDF
+                </button>
+              </div>
+              {pdfError && <p className="text-xs text-red-500 mb-2">{pdfError}</p>}
               <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{c.client_report_text}</pre>
             </div>
           ) : null}
@@ -274,6 +301,24 @@ export default function CaseDetailPage() {
       {/* Tab: Estimate */}
       {activeTab === 'estimate' && (
         <div className="space-y-5">
+          {c.estimate && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700">Saved Estimate</h3>
+                <button
+                  onClick={() => handleDownloadPdf('estimate')}
+                  className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors border border-blue-200"
+                >
+                  ↓ Download PDF
+                </button>
+              </div>
+              {pdfError && <p className="text-xs text-red-500 mb-2">{pdfError}</p>}
+              <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono bg-gray-50 rounded-lg p-3">
+                {JSON.stringify(c.estimate, null, 2)}
+              </pre>
+            </div>
+          )}
+
           {estimateSuggestion ? (
             <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
               <h3 className="text-sm font-semibold text-blue-800 mb-3">AI Estimate Suggestion</h3>
