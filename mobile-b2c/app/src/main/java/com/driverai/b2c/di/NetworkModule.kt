@@ -4,6 +4,7 @@ import com.driverai.b2c.BuildConfig
 import com.driverai.b2c.data.network.ApiService
 import com.driverai.b2c.data.network.AuthInterceptor
 import com.driverai.b2c.data.network.ScanApiService
+import com.driverai.b2c.data.network.SubscriptionApiService
 import com.driverai.b2c.data.network.VehicleApiService
 import com.google.gson.FieldNamingPolicy
 import com.google.gson.GsonBuilder
@@ -60,4 +61,8 @@ object NetworkModule {
     @Provides @Singleton
     fun provideScanApiService(retrofit: Retrofit): ScanApiService =
         retrofit.create(ScanApiService::class.java)
+
+    @Provides @Singleton
+    fun provideSubscriptionApiService(retrofit: Retrofit): SubscriptionApiService =
+        retrofit.create(SubscriptionApiService::class.java)
 }

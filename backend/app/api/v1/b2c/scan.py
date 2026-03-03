@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -57,6 +58,26 @@ async def analyze_scan(
         known_codes: dict[str, ErrorCode] = {ec.code: ec for ec in db_result.scalars()}
     else:
         known_codes = {}
+
+    # Ensure all scanned codes exist in error_codes (FK requirement).
+    # Codes absent from our dataset get a minimal placeholder record.
+    if request.codes:
+        missing = [c for c in code_strings if c not in known_codes]
+        if missing:
+            await db.execute(
+                pg_insert(ErrorCode)
+                .values([
+                    {
+                        "code": c,
+                        "standard_description": "Unknown fault code",
+                        "category": c[0] if c else "P",
+                        "system": "unknown",
+                    }
+                    for c in missing
+                ])
+                .on_conflict_do_nothing(index_elements=["code"])
+            )
+            await db.flush()
 
     # Create scan session
     session = ScanSession(
@@ -142,5 +163,6 @@ async def analyze_scan(
         session_id=session.id,
         overall_risk=overall_risk,
         safe_to_drive=overall_risk not in ("high", "critical"),
+        is_premium=is_premium,
         codes=code_results,
     )

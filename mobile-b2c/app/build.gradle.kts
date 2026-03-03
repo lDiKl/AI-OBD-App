@@ -79,6 +79,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
 
+    // Browser (Custom Tabs for Stripe Checkout)
+    implementation("androidx.browser:browser:1.8.0")
+
     // Coroutines
     implementation(libs.coroutines.android)
 }

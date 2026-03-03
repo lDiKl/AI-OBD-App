@@ -10,6 +10,10 @@ export default defineConfig({
   server: {
     host: true,   // listen on 0.0.0.0 — required inside Docker
     port: 5173,
+    watch: {
+      usePolling: true,   // required on Windows+Docker: inotify events don't propagate
+      interval: 1000,
+    },
     proxy: {
       '/api': {
         // In Docker: API_URL=http://api:8000 is set by docker-compose

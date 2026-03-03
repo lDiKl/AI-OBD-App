@@ -24,6 +24,7 @@
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
 | web/ Phase 3.1–3.5 | ✅ Backend + Web UI готовы, работает в Docker |
 | web/ Phase 3.2 PDF | ✅ WeasyPrint, PDF отчёт + смета генерируются и скачиваются |
+| Phase 4 Монетизация | ✅ Stripe: B2B Pro куплен, B2C Premium куплен, webhooks обновляют DB |
 
 ---
 
@@ -219,32 +220,37 @@
 
 ### 4.1 Stripe Backend
 
-- [ ] Stripe SDK + `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` в .env
-- [ ] Создать Price IDs в Stripe Dashboard (B2C monthly, B2B basic, B2B pro)
-- [ ] `POST /api/v1/b2c/subscription/checkout` → Stripe Checkout session URL
-- [ ] `POST /api/v1/b2b/subscription/checkout` → Stripe Checkout session URL
-- [ ] `POST /api/v1/webhooks/stripe/b2c` → обновить `users.subscription_status`
-- [ ] `POST /api/v1/webhooks/stripe/b2b` → обновить `shops.subscription_tier`
-- [ ] `GET /api/v1/b2c/subscription/status` — статус подписки
-- [ ] `DELETE /api/v1/b2c/subscription` — отмена
+- [x] Stripe SDK + `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` в .env
+- [x] Создать Price IDs в Stripe Dashboard (B2C monthly, B2B basic, B2B pro)
+- [x] `POST /api/v1/b2c/subscription/checkout` → Stripe Checkout session URL
+- [x] `POST /api/v1/b2b/subscription/checkout` → Stripe Checkout session URL
+- [x] `POST /api/v1/webhooks/stripe` → unified webhook: обновляет `users.subscription_status` и `shops.subscription_tier`
+- [x] `GET /api/v1/b2c/subscription/status` — статус подписки
+- [x] `GET /api/v1/b2b/subscription/status` — статус подписки
+- [x] Stripe CLI в Docker (`docker-compose.yml`) для локального форвардинга webhook
+- [ ] `DELETE /api/v1/b2c/subscription` — отмена (post-MVP)
 
 ### 4.2 B2C Paywall в приложении
 
-- [ ] Проверка `subscription_status` перед показом premium контента
-- [ ] Экран "Upgrade": описание планов + кнопка
-- [ ] Нажатие → открыть Stripe Checkout в браузере (`CustomTabsIntent`)
-- [ ] При возврате в приложение → refresh subscription status
-- [ ] Free tier: только код + severity (без AI объяснения)
-- [ ] Premium tier: полный AI анализ + cost estimation + history
+- [x] Проверка `subscription_status` перед показом premium контента (`is_premium` в scan response)
+- [x] Экран "Upgrade" (`UpgradeScreen`): описание планов + кнопка
+- [x] Нажатие → открыть Stripe Checkout в браузере (`CustomTabsIntent`)
+- [x] Deep link `driverai://payment/success` → возврат в приложение (`PaymentSuccessScreen`)
+- [x] `ProfileScreen` — email, статус подписки, upgrade кнопка, sign out
+- [x] Free tier: только код + severity (без AI объяснения)
+- [x] Premium tier: полный AI анализ (при наличии Anthropic кредитов)
+- [x] Корректное сообщение если AI недоступен (не показывать "Upgrade" премиум-пользователю)
 
 ### 4.3 B2B Subscription в вебе
 
-- [ ] Страница Billing: текущий план, следующий платёж, история
-- [ ] Upgrade flow → Stripe Checkout
-- [ ] Basic vs Pro ограничения (количество кейсов/месяц, team members)
-- [ ] Team Management страница (Pro): invite механика по email
+- [x] Страница `/billing`: текущий план, карточки Basic (49€) и Pro (149€)
+- [x] Upgrade flow → Stripe Checkout → redirect → `/billing/success`
+- [x] `BillingSuccessPage` — invalidate shop-profile cache
+- [x] Навигационный пункт "Billing" в sidebar
+- [ ] Basic vs Pro ограничения на уровне API (количество кейсов/месяц) (post-MVP)
+- [ ] Team Management страница (post-MVP)
 
-**✅ Milestone 4 достигнут, когда:** Реальная оплата → функции разблокированы
+**✅ Milestone 4 достигнут:** B2B Pro куплен через Stripe, план обновился. B2C Premium куплен, DB обновился. Webhook работает. ✅
 
 ---
 
@@ -308,4 +314,4 @@
 ---
 
 *Последнее обновление: 2026-03-03*
-*Текущий фокус: Фаза 4 — Монетизация (Stripe)*
+*Текущий фокус: Фаза 5 — B2B Android*

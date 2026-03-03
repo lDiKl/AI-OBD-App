@@ -54,6 +54,22 @@ services:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # ─── Stripe CLI (webhook forwarding for local dev) ───────────────────────
+  # При первом запуске выводит в лог whsec_... — скопируй в backend/.env как STRIPE_WEBHOOK_SECRET
+  # Затем: docker compose restart api
+
+  stripe:
+    image: stripe/stripe-cli:latest
+    # При первом запуске выводит в лог whsec_... — скопируй в backend/.env как STRIPE_WEBHOOK_SECRET
+    # Затем: docker compose restart api
+    command: listen --forward-to http://api:8000/api/v1/webhooks/stripe
+    env_file:
+      - path: ./backend/.env
+        required: false
+    depends_on:
+      - api
+    restart: unless-stopped
+
   # ─── Web Frontend (ShopAI B2B) ────────────────────────────────────────────
 
   web:

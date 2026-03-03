@@ -112,3 +112,11 @@ export interface ReportOut {
   next_steps: string
   disclaimer: string
 }
+
+export interface CheckoutResponse {
+  checkout_url: string
+}
+
+export interface B2BSubscriptionStatus {
+  subscription_tier: 'basic' | 'pro'
+}

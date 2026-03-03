@@ -2,7 +2,7 @@ import client from './client'
 import type {
   Shop, ShopSetupRequest,
   DiagnosticAnalyzeRequest, DiagnosticAnalyzeResponse,
-  Case, ReportOut,
+  Case, ReportOut, CheckoutResponse, B2BSubscriptionStatus,
 } from '@/types/api'
 
 export const b2bApi = {
@@ -59,4 +59,11 @@ export const b2bApi = {
 
   downloadEstimatePdf: (caseId: string) =>
     client.get(`/api/v1/b2b/cases/${caseId}/estimate/pdf`, { responseType: 'blob' }).then(r => r.data),
+
+  // ── Subscription ───────────────────────────────────────────────────────────
+  createCheckout: (tier: 'basic' | 'pro') =>
+    client.post<CheckoutResponse>('/api/v1/b2b/subscription/checkout', { tier }).then(r => r.data),
+
+  getSubscriptionStatus: () =>
+    client.get<B2BSubscriptionStatus>('/api/v1/b2b/subscription/status').then(r => r.data),
 }

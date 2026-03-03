@@ -51,4 +51,5 @@ class ScanAnalyzeResponse(BaseModel):
     session_id: str
     overall_risk: str  # low | medium | high
     safe_to_drive: bool
+    is_premium: bool = False  # True if user has premium subscription
     codes: list[CodeResult]

@@ -50,6 +50,7 @@ data class ScanAnalyzeResponse(
     val sessionId: String,
     val overallRisk: String,   // low | medium | high | critical
     val safeToDrive: Boolean,
+    val isPremium: Boolean = false,
     val codes: List<CodeResultDto>,
 )
 

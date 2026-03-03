@@ -65,6 +65,7 @@ import com.driverai.b2c.viewmodel.ScannerViewModel
 @Composable
 fun ScannerScreen(
     onSignOut: () -> Unit = {},
+    onUpgradeClick: () -> Unit = {},
     viewModel: ScannerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -122,7 +123,9 @@ fun ScannerScreen(
                 is ScanState.Analyzing -> LoadingContent("Analyzing with AI…")
                 is ScanState.AnalysisReady -> AnalysisResultContent(
                     analysis = s.analysis,
+                    isPremium = s.analysis.isPremium,
                     onScanAgain = { viewModel.onScanAgain() },
+                    onUpgradeClick = onUpgradeClick,
                 )
                 is ScanState.Error -> ErrorContent(
                     message = s.message,
@@ -189,7 +192,9 @@ private fun OBDResultContent(
 @Composable
 private fun AnalysisResultContent(
     analysis: ScanAnalyzeResponse,
+    isPremium: Boolean,
     onScanAgain: () -> Unit,
+    onUpgradeClick: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -197,7 +202,7 @@ private fun AnalysisResultContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { OverallRiskCard(analysis) }
-        items(analysis.codes) { code -> AnalysisCodeCard(code) }
+        items(analysis.codes) { code -> AnalysisCodeCard(code, isPremium = isPremium, onUpgradeClick = onUpgradeClick) }
         item {
             OutlinedButton(
                 onClick = onScanAgain,
@@ -232,7 +237,7 @@ private fun OverallRiskCard(analysis: ScanAnalyzeResponse) {
 }
 
 @Composable
-private fun AnalysisCodeCard(code: CodeResultDto) {
+private fun AnalysisCodeCard(code: CodeResultDto, isPremium: Boolean = false, onUpgradeClick: () -> Unit = {}) {
     val severityColor = when (code.free.severity) {
         "critical" -> MaterialTheme.colorScheme.error
         "high"     -> Color(0xFFE65100)
@@ -298,16 +303,32 @@ private fun AnalysisCodeCard(code: CodeResultDto) {
                 )
             }
 
-            // Free tier upsell
+            // Show upsell or AI-unavailable notice depending on subscription
             if (code.premium == null) {
                 Spacer(Modifier.height(8.dp))
                 Divider()
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Upgrade to Premium for AI explanation, likely causes and repair advice",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (isPremium) {
+                    // Premium user but AI call failed (e.g. API key not configured)
+                    Text(
+                        "AI analysis unavailable. Check back later or scan again.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        "Upgrade to Premium for AI explanation, likely causes and repair advice",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = onUpgradeClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Upgrade to Premium", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
         }
     }
