@@ -120,3 +120,28 @@ export interface CheckoutResponse {
 export interface B2BSubscriptionStatus {
   subscription_tier: 'basic' | 'pro'
 }
+
+export interface QuoteDto {
+  cost_min: number
+  cost_max: number
+  estimated_days: number
+  notes?: string
+}
+
+export interface QuoteRequest {
+  cost_min: number
+  cost_max: number
+  estimated_days: number
+  notes?: string
+}
+
+export interface Lead {
+  lead_id: string
+  user_email: string
+  status: 'pending' | 'quoted' | 'closed'
+  dtc_codes: string[]
+  vehicle_info: Record<string, string>
+  freeze_frame?: Record<string, unknown>
+  created_at: string
+  quote?: QuoteDto
+}

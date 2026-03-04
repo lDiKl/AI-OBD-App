@@ -3,6 +3,7 @@ import type {
   Shop, ShopSetupRequest,
   DiagnosticAnalyzeRequest, DiagnosticAnalyzeResponse,
   Case, ReportOut, CheckoutResponse, B2BSubscriptionStatus,
+  Lead, QuoteRequest,
 } from '@/types/api'
 
 export const b2bApi = {
@@ -66,4 +67,17 @@ export const b2bApi = {
 
   getSubscriptionStatus: () =>
     client.get<B2BSubscriptionStatus>('/api/v1/b2b/subscription/status').then(r => r.data),
+
+  // ── Leads ─────────────────────────────────────────────────────────────────
+  getLeads: () =>
+    client.get<Lead[]>('/api/v1/b2b/leads').then(r => r.data),
+
+  getLead: (id: string) =>
+    client.get<Lead>(`/api/v1/b2b/leads/${id}`).then(r => r.data),
+
+  sendQuote: (id: string, body: QuoteRequest) =>
+    client.put<Lead>(`/api/v1/b2b/leads/${id}/quote`, body).then(r => r.data),
+
+  closeLead: (id: string) =>
+    client.put<Lead>(`/api/v1/b2b/leads/${id}/close`).then(r => r.data),
 }

@@ -80,6 +80,33 @@ data class DiagnosticAnalyzeResponse(
     val additionalNotes: String,
 )
 
+// ---- Leads ----
+
+data class B2BQuoteDto(
+    val costMin: Float,
+    val costMax: Float,
+    val estimatedDays: Int,
+    val notes: String?,
+)
+
+data class B2BLeadDto(
+    val leadId: String,
+    val userEmail: String,
+    val status: String,   // pending | quoted | closed
+    val dtcCodes: List<String>,
+    val vehicleInfo: Map<String, String>,
+    val freezeFrame: Map<String, Any>?,
+    val createdAt: String,
+    val quote: B2BQuoteDto?,
+)
+
+data class QuoteRequest(
+    val costMin: Float,
+    val costMax: Float,
+    val estimatedDays: Int,
+    val notes: String? = null,
+)
+
 // ---- Subscription ----
 
 data class CheckoutRequest(
@@ -114,6 +141,18 @@ interface ShopApiService {
 
     @POST("api/v1/b2b/diagnostic/analyze")
     suspend fun analyzeAndCreateCase(@Body request: DiagnosticAnalyzeRequest): DiagnosticAnalyzeResponse
+
+    @GET("api/v1/b2b/leads")
+    suspend fun getLeads(): List<B2BLeadDto>
+
+    @GET("api/v1/b2b/leads/{leadId}")
+    suspend fun getLead(@Path("leadId") leadId: String): B2BLeadDto
+
+    @PUT("api/v1/b2b/leads/{leadId}/quote")
+    suspend fun sendQuote(@Path("leadId") leadId: String, @Body request: QuoteRequest): B2BLeadDto
+
+    @PUT("api/v1/b2b/leads/{leadId}/close")
+    suspend fun closeLead(@Path("leadId") leadId: String): B2BLeadDto
 
     @POST("api/v1/b2b/subscription/checkout")
     suspend fun getCheckoutUrl(@Body request: CheckoutRequest): CheckoutResponse

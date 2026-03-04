@@ -285,7 +285,7 @@ private fun DoneContent(caseId: String, serverId: String?, codes: String, onRese
     }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = onReset, modifier = Modifier.weight(1f)) { Text("New Scan Disconnect") }
+        Button(onClick = onReset, modifier = Modifier.weight(1f)) { Text("New Scan") }
     }
 }
 

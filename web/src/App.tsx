@@ -11,6 +11,7 @@ import CaseDetailPage from '@/pages/CaseDetailPage'
 import SettingsPage from '@/pages/SettingsPage'
 import BillingPage from '@/pages/BillingPage'
 import BillingSuccessPage from '@/pages/BillingSuccessPage'
+import LeadsPage from '@/pages/LeadsPage'
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/diagnostic" element={<DiagnosticPage />} />
           <Route path="/cases" element={<CasesPage />} />
           <Route path="/cases/:id" element={<CaseDetailPage />} />
+          <Route path="/leads" element={<LeadsPage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/billing/success" element={<BillingSuccessPage />} />
           <Route path="/settings" element={<SettingsPage />} />

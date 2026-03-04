@@ -21,6 +21,7 @@
 | mobile-b2c — Scan History | ✅ Room persistence + History + Detail экраны |
 | mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
 | mobile-b2b — Phase 5 | ✅ Firebase Auth + OBD + Room + DiagnosticCase + Scan + Profile |
+| Phase 6 Integration Bridge | ✅ B2C → Shops → Lead → Quote → B2C видит ответ. B2B Web + Android. |
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
 | web/ Phase 3.1–3.5 | ✅ Backend + Web UI готовы, работает в Docker |
@@ -47,8 +48,8 @@
 
 - [x] Alembic init + `alembic.ini`
 - [x] Миграция 0001: все основные таблицы (error_codes, repair_cost_estimates, users, vehicles, scan_sessions, error_occurrences)
-- [ ] Миграция 0002: таблицы `shops`, `shop_users`, `diagnostic_cases` (Phase 3, B2B)
-- [ ] Миграция 0003: таблицы `service_leads`, `shop_quotes` (Phase 4, Integration)
+- [x] Миграция 0002: таблицы `shops`, `shop_users`, `diagnostic_cases` (Phase 3, B2B)
+- [x] Миграция 0003: таблицы `service_leads`, `shop_quotes` (Phase 6, Integration)
 - [x] Seeding: скрипт `scripts/seed_dtc.py` — загрузить `docs/dtc_codes.csv` в `error_codes`
 - [ ] Seeding: базовые `repair_cost_estimates` для топ-100 кодов по регионам (EU, UA)
 
@@ -278,28 +279,49 @@
 
 > **Milestone:** B2C пользователь отправляет диагностику → B2B сервис получает лид в dashboard
 
-### 6.1 B2C → найти сервис
+### 6.1 Backend — Leads API
 
-- [ ] `GET /api/v1/b2c/shops/nearby?lat=&lng=&radius_km=` — список сервисов рядом
-- [ ] Экран "Найти сервис" в B2C приложении (список или карта)
-- [ ] Кнопка "Отправить диагностику в сервис"
+- [x] Alembic migration 0003 — таблицы `service_leads`, `shop_quotes`
+- [x] SQLAlchemy модели `ServiceLead`, `ShopQuote` (`app/models/lead.py`)
+- [x] `GET /api/v1/b2c/shops/nearby?lat=&lng=&radius_km=` — Haversine-distance, сортировка по дистанции
+- [x] `POST /api/v1/b2c/leads` — B2C отправляет диагностику в сервис
+- [x] `GET /api/v1/b2c/leads` — мои отправленные лиды + смета если есть
+- [x] `GET /api/v1/b2b/leads` — входящие лиды сервиса (новейшие первые)
+- [x] `GET /api/v1/b2b/leads/{id}` — детальная карточка лида (freeze frame)
+- [x] `PUT /api/v1/b2b/leads/{id}/quote` — механик отправляет смету (cost_min/max, days, notes)
+- [x] `PUT /api/v1/b2b/leads/{id}/close` — закрыть лид
+- [x] Seed-скрипт `scripts/seed_shops.py` — 4 тестовых сервиса рядом с Вроцлавом + Firebase аккаунты
 
-### 6.2 Lead System
+### 6.2 B2C Mobile — Shop Finder + My Leads
 
-- [ ] `POST /api/v1/b2c/leads` — отправить `scan_session` в сервис (с согласия пользователя)
-- [ ] `GET /api/v1/b2c/leads` — мои отправленные лиды (статус, ответы)
-- [ ] `GET /api/v1/b2b/leads` — входящие лиды в B2B dashboard
-- [ ] B2B Web: страница лидов — принять/отклонить/отправить смету
-- [ ] `PUT /api/v1/b2b/leads/{id}/quote` — ответить сметой
-- [ ] B2C: уведомление о полученной смете
+- [x] `ShopsLeadsApiService` + DTOs (`ShopDto`, `SendLeadRequest`, `B2CLeadDto`, `QuoteDto`)
+- [x] `LeadsRepository` — `getNearbyShops`, `sendLead`, `getMyLeads`
+- [x] `LeadsViewModel` — Hilt, exposing repository
+- [x] `ShopsNearbyScreen` — FusedLocationProviderClient → список сервисов → "Send Diagnostic" кнопка
+- [x] `MyLeadsScreen` — список отправленных лидов, статус-бейджи, карточка смети если получена
+- [x] `ScannerScreen` — кнопка "Find Nearby Service" в блоке результатов анализа
+- [x] `AppNavHost` — 5-я вкладка "Leads" + маршрут `shops_nearby`
+- [x] `build.gradle.kts` — `play-services-location:21.3.0`
+- [x] `NetworkModule` — `ShopsLeadsApiService` provider
 
-### 6.3 Геосервис
+### 6.3 B2B Web — Leads Dashboard
 
-- [ ] PostGIS или простые `lat/lng` запросы в PostgreSQL
-- [ ] Верификация сервисов (ручная на старте)
-- [ ] Профили сервисов видны B2C пользователям
+- [x] `web/src/types/api.ts` — типы `Lead`, `QuoteDto`, `QuoteRequest`
+- [x] `web/src/api/b2b.ts` — `getLeads`, `sendQuote`, `closeLead`
+- [x] `web/src/pages/LeadsPage.tsx` — таблица лидов, раскрывающиеся строки, форма смети, кнопка закрыть
+- [x] `web/src/App.tsx` — маршрут `/leads`
+- [x] `web/src/components/Layout.tsx` — пункт "Leads" в sidebar
 
-**✅ Milestone 6 достигнут, когда:** Полный цикл лида: B2C → лид → смета → запись
+### 6.4 B2B Android — Leads Tab
+
+- [x] `ShopApiService` — DTOs `B2BLeadDto`, `B2BQuoteDto`, `QuoteRequest` + 4 endpoint метода
+- [x] `B2BLeadsRepository` — `getLeads`, `sendQuote`, `closeLead`
+- [x] `LeadsViewModel` — Hilt ViewModel
+- [x] `LeadsScreen` — список лидов с бейджами статуса, тап → детальный экран
+- [x] `LeadDetailScreen` — vehicle info + DTC коды + форма сметы + кнопки "Send Quote" / "Close Lead"
+- [x] `AppNavHost` — 4-я вкладка "Leads" (Inbox icon) + маршруты `leads`, `lead_detail/{leadId}`
+
+**✅ Milestone 6 достигнут:** Полный цикл: B2C сканирует → находит сервис → отправляет диагностику → B2B (Web + Android) принимает лид → отправляет смету → B2C видит ответ ✅
 
 ---
 
@@ -316,5 +338,5 @@
 
 ---
 
-*Последнее обновление: 2026-03-03*
-*Текущий фокус: Фаза 6 — Integration Bridge (B2C → B2B leads)*
+*Последнее обновление: 2026-03-04*
+*Текущий фокус: Фаза 7 — TBD*

@@ -64,6 +64,7 @@ import com.driverai.b2c.viewmodel.ScannerViewModel
 @Composable
 fun ScannerScreen(
     onUpgradeClick: () -> Unit = {},
+    onFindService: ((ScanAnalyzeResponse) -> Unit)? = null,
     viewModel: ScannerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -117,6 +118,7 @@ fun ScannerScreen(
                     onScanAgain = { viewModel.onScanAgain() },
                     onNewScan = { viewModel.onRetry() },
                     onUpgradeClick = onUpgradeClick,
+                    onFindService = if (onFindService != null) { { onFindService(s.analysis) } } else null,
                 )
                 is ScanState.Error -> ErrorContent(
                     message = s.message,
@@ -194,6 +196,7 @@ private fun AnalysisResultContent(
     onScanAgain: () -> Unit,
     onNewScan: () -> Unit,
     onUpgradeClick: () -> Unit = {},
+    onFindService: (() -> Unit)? = null,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -204,6 +207,14 @@ private fun AnalysisResultContent(
         items(analysis.codes) { code -> AnalysisCodeCard(code, isPremium = isPremium, onUpgradeClick = onUpgradeClick) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onFindService != null) {
+                    Button(
+                        onClick = onFindService,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Find Nearby Service")
+                    }
+                }
                 OutlinedButton(
                     onClick = onScanAgain,
                     modifier = Modifier.fillMaxWidth(),

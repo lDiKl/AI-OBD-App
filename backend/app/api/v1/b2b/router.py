@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.b2b import diagnostic, cases, reports, estimates, shop, subscription
+from app.api.v1.b2b import diagnostic, cases, reports, estimates, shop, subscription, leads
 
 router = APIRouter()
 
@@ -10,3 +10,4 @@ router.include_router(cases.router, prefix="/cases", tags=["B2B Cases"])
 router.include_router(reports.router, prefix="/cases", tags=["B2B Reports"])
 router.include_router(estimates.router, prefix="/cases", tags=["B2B Estimates"])
 router.include_router(subscription.router, prefix="/subscription", tags=["B2B Subscription"])
+router.include_router(leads.router, prefix="/leads", tags=["B2B Leads"])

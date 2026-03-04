@@ -82,6 +82,9 @@ dependencies {
     // Browser (Custom Tabs for Stripe Checkout)
     implementation("androidx.browser:browser:1.8.0")
 
+    // Location (for nearby shops feature)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // Coroutines
     implementation(libs.coroutines.android)
 }

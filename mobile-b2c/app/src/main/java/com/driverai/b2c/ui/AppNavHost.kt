@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -28,14 +30,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.driverai.b2c.data.auth.FirebaseAuthRepository
+import com.driverai.b2c.data.network.ScanAnalyzeResponse
 import com.driverai.b2c.data.scan.ScanSessionWithOccurrences
 import com.driverai.b2c.ui.auth.LoginScreen
 import com.driverai.b2c.ui.history.HistoryScreen
 import com.driverai.b2c.ui.history.ScanDetailScreen
+import com.driverai.b2c.ui.leads.MyLeadsScreen
+import com.driverai.b2c.ui.leads.ShopsNearbyScreen
 import com.driverai.b2c.ui.profile.ProfileScreen
 import com.driverai.b2c.ui.scan.ScannerScreen
 import com.driverai.b2c.ui.upgrade.UpgradeScreen
 import com.driverai.b2c.ui.vehicle.VehicleScreen
+import com.driverai.b2c.viewmodel.LeadsViewModel
 
 private const val ROUTE_LOGIN           = "login"
 private const val ROUTE_SCANNER         = "scanner"
@@ -45,6 +51,15 @@ private const val ROUTE_PROFILE         = "profile"
 private const val ROUTE_DETAIL          = "scan_detail"
 private const val ROUTE_UPGRADE         = "upgrade"
 private const val ROUTE_PAYMENT_SUCCESS = "payment_success"
+private const val ROUTE_MY_LEADS        = "my_leads"
+private const val ROUTE_SHOPS_NEARBY    = "shops_nearby"
+
+/** Temporary holder for data passed to ShopsNearbyScreen. */
+private data class PendingLeadData(
+    val sessionId: String?,
+    val dtcCodes: List<String>,
+    val vehicleInfo: Map<String, String>,
+)
 
 @Composable
 fun AppNavHost(
@@ -94,6 +109,7 @@ private fun MainShell(
     val currentDestination = navBackStackEntry?.destination
 
     var selectedSession by remember { mutableStateOf<ScanSessionWithOccurrences?>(null) }
+    var pendingLead by remember { mutableStateOf<PendingLeadData?>(null) }
 
     // Handle Stripe payment return: driverai://payment/success
     LaunchedEffect(deepLinkUri) {
@@ -107,7 +123,7 @@ private fun MainShell(
     }
 
     val showBottomBar = currentDestination?.route?.let {
-        it in listOf(ROUTE_SCANNER, ROUTE_VEHICLES, ROUTE_HISTORY, ROUTE_PROFILE)
+        it in listOf(ROUTE_SCANNER, ROUTE_VEHICLES, ROUTE_HISTORY, ROUTE_MY_LEADS, ROUTE_PROFILE)
     } ?: true
 
     val onUpgradeClick = { bottomNavController.navigate(ROUTE_UPGRADE) }
@@ -150,6 +166,17 @@ private fun MainShell(
                         label = { Text("History") },
                     )
                     NavigationBarItem(
+                        selected = currentDestination?.hierarchy?.any { it.route == ROUTE_MY_LEADS } == true,
+                        onClick = {
+                            bottomNavController.navigate(ROUTE_MY_LEADS) {
+                                popUpTo(bottomNavController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true; restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.LocalOffer, contentDescription = null) },
+                        label = { Text("Leads") },
+                    )
+                    NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any { it.route == ROUTE_PROFILE } == true,
                         onClick = {
                             bottomNavController.navigate(ROUTE_PROFILE) {
@@ -167,7 +194,17 @@ private fun MainShell(
         Box(modifier = Modifier.padding(paddingValues)) {
             NavHost(navController = bottomNavController, startDestination = ROUTE_SCANNER) {
                 composable(ROUTE_SCANNER) {
-                    ScannerScreen(onUpgradeClick = onUpgradeClick)
+                    ScannerScreen(
+                        onUpgradeClick = onUpgradeClick,
+                        onFindService = { analysis ->
+                            pendingLead = PendingLeadData(
+                                sessionId = analysis.sessionId,
+                                dtcCodes = analysis.codes.map { it.code },
+                                vehicleInfo = emptyMap(), // vehicle info fetched separately in screen
+                            )
+                            bottomNavController.navigate(ROUTE_SHOPS_NEARBY)
+                        },
+                    )
                 }
                 composable(ROUTE_VEHICLES) {
                     VehicleScreen()
@@ -185,6 +222,30 @@ private fun MainShell(
                         ScanDetailScreen(
                             item = session,
                             onBack = { bottomNavController.popBackStack() },
+                        )
+                    }
+                }
+                composable(ROUTE_MY_LEADS) {
+                    val leadsVm: LeadsViewModel = hiltViewModel()
+                    MyLeadsScreen(leadsRepository = leadsVm.repository)
+                }
+                composable(ROUTE_SHOPS_NEARBY) {
+                    val leadsVm: LeadsViewModel = hiltViewModel()
+                    val lead = pendingLead
+                    if (lead != null) {
+                        ShopsNearbyScreen(
+                            sessionId = lead.sessionId,
+                            dtcCodes = lead.dtcCodes,
+                            vehicleInfo = lead.vehicleInfo,
+                            leadsRepository = leadsVm.repository,
+                            onBack = { bottomNavController.popBackStack() },
+                            onLeadSent = {
+                                pendingLead = null
+                                bottomNavController.navigate(ROUTE_MY_LEADS) {
+                                    popUpTo(ROUTE_SCANNER) { saveState = true }
+                                    launchSingleTop = true
+                                }
+                            },
                         )
                     }
                 }
