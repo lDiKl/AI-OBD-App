@@ -135,6 +135,7 @@ class ELM327Handler:
         self.linefeeds = True
         self.spaces = True
         self.headers = False
+        self._scan_count = 0  # incremented on each Mode 03 request; drives alternation
 
     def _fmt(self, data: str) -> str:
         if not self.spaces:
@@ -263,6 +264,15 @@ class ELM327Handler:
 
         # ── Mode 03 — Stored DTCs ────────────────────────────────
         if cmd == "03":
+            self._scan_count += 1
+            # Alternate per scan: even = random errors, odd = clean
+            if self._scan_count % 2 == 1:
+                num = random.randint(1, 5)
+                sm._dtcs = random.sample(DTC_POOL, num)
+                log.info(f"Scan #{self._scan_count} — injecting {num} DTC(s): {[('P' + d) for d in sm._dtcs]}")
+            else:
+                sm._dtcs = []
+                log.info(f"Scan #{self._scan_count} — clean scan, no DTCs")
             dtcs = sm.dtcs
             if not dtcs:
                 return self._fmt("43 00 00 00 00 00 00")
@@ -316,14 +326,7 @@ class ELM327Handler:
 # ─────────────────────────────────────────────────────────────
 
 def handle_client(conn: socket.socket, handler: ELM327Handler, addr, conn_num: int):
-    if conn_num % 2 == 0:
-        # Even connection → inject 1–5 random DTC codes
-        num = random.randint(1, 5)
-        handler.sm._dtcs = random.sample(DTC_POOL, num)
-        log.info(f"[+] Client connected: {addr}  [#{conn_num} — injecting {num} DTC(s): {[('P' + d) for d in handler.sm._dtcs]}]")
-    else:
-        handler.sm._dtcs = []
-        log.info(f"[+] Client connected: {addr}  [#{conn_num} — clean scan, no DTCs]")
+    log.info(f"[+] Client connected: {addr}  [#{conn_num}] — DTC alternation per scan (Mode 03)")
     buf = ""
     try:
         while True:

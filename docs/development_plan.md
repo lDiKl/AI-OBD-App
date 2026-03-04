@@ -20,6 +20,7 @@
 | mobile-b2c — OBD → AI Analysis | ✅ Scan → backend → AI результат на экране |
 | mobile-b2c — Scan History | ✅ Room persistence + History + Detail экраны |
 | mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
+| mobile-b2b — Phase 5 | ✅ Firebase Auth + OBD + Room + DiagnosticCase + Scan + Profile |
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
 | web/ Phase 3.1–3.5 | ✅ Backend + Web UI готовы, работает в Docker |
@@ -258,13 +259,15 @@
 
 > **Milestone:** Механик со смартфоном сканирует OBD → создаёт кейс → видит professional AI анализ
 
-- [ ] Firebase Auth B2B (ShopUser тип — отдельный flow от B2C)
-- [ ] OBD слой — переиспользовать `data/obd/` из mobile-b2c (копия или shared module)
-- [ ] `DiagnosticCaseRepository` — создание кейса из OBD скана
-- [ ] Экран "Scan + Create Case": поле клиента/авто + кнопка создать кейс
-- [ ] Показать AI анализ (B2B формат): ranked causes + checklist
-- [ ] Список кейсов с синхронизацией (Room + backend)
-- [ ] Offline mode: кэшировать кейсы в Room, sync при восстановлении сети
+- [x] Firebase Auth B2B (ShopUser тип — отдельный flow от B2C)
+- [x] OBD слой — переиспользовать `data/obd/` из mobile-b2c (копия с package rename)
+- [x] `DiagnosticCaseRepository` — offline-first: Room → API + syncPending
+- [x] Экран Scanner: TCP/BT connect → scan → VehicleInfoForm → AI analyze → Done
+- [x] Показать AI анализ (B2B формат): ranked causes + checklist + labor estimate
+- [x] Список кейсов (CasesScreen + CaseDetailScreen) с синхронизацией
+- [x] Offline mode: `DiagnosticCaseEntity.pendingSync` + `SyncManager` + `ConnectivityObserver`
+- [x] Profile screen: shop info + plan tier + Stripe upgrade (CustomTabs) + sign out
+- [x] Shop setup flow: LoginScreen → ShopSetupScreen → MainShell (AppNavHost)
 - [ ] Push уведомления (FCM) — для будущих лидов
 
 **✅ Milestone 5 достигнут, когда:** B2B Android создаёт кейс из OBD скана
@@ -314,4 +317,4 @@
 ---
 
 *Последнее обновление: 2026-03-03*
-*Текущий фокус: Фаза 5 — B2B Android*
+*Текущий фокус: Фаза 6 — Integration Bridge (B2C → B2B leads)*

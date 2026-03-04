@@ -15,6 +15,8 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class B2BCheckoutRequest(BaseModel):
     tier: str = "pro"  # "basic" | "pro"
+    success_url: str | None = None  # override for mobile deep links
+    cancel_url: str | None = None
 
 
 @router.post("/checkout")
@@ -34,12 +36,14 @@ async def create_checkout(body: B2BCheckoutRequest, current=Depends(get_current_
         raise HTTPException(status_code=503, detail=f"B2B {body.tier} price not configured")
 
     try:
+        resolved_success = body.success_url or (settings.B2B_SUCCESS_URL + "?session_id={CHECKOUT_SESSION_ID}")
+        resolved_cancel = body.cancel_url or settings.B2B_CANCEL_URL
         session = stripe.checkout.Session.create(
             mode="subscription",
             payment_method_types=["card"],
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=settings.B2B_SUCCESS_URL + "?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=settings.B2B_CANCEL_URL,
+            success_url=resolved_success,
+            cancel_url=resolved_cancel,
             customer_email=shop.email or None,
             metadata={"type": "b2b", "shop_id": shop.id, "tier": body.tier},
         )

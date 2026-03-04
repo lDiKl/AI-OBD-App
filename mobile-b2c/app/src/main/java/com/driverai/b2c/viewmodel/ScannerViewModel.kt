@@ -13,6 +13,7 @@ import com.driverai.b2c.data.scan.ScanRepository
 import com.driverai.b2c.data.vehicle.VehicleRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +54,14 @@ class ScannerViewModel @Inject constructor(
 
     private var lastConnectionType = ConnectionType.NONE
     private var lastDeviceAddress = ""
+    private var scanJob: Job? = null
+
+    fun onCancel() {
+        scanJob?.cancel()
+        scanJob = null
+        obdConnectionManager.disconnect()
+        _state.value = ScanState.Idle
+    }
 
     @SuppressLint("MissingPermission")
     fun onStartScan() {
@@ -76,7 +85,7 @@ class ScannerViewModel @Inject constructor(
     fun onDeviceSelected(deviceAddress: String) {
         lastConnectionType = ConnectionType.BLUETOOTH
         lastDeviceAddress = deviceAddress
-        viewModelScope.launch {
+        scanJob = viewModelScope.launch {
             _state.value = ScanState.Connecting
             val connectResult = obdConnectionManager.connect(deviceAddress)
             if (connectResult.isFailure) {
@@ -128,7 +137,7 @@ class ScannerViewModel @Inject constructor(
     /** Connect to local TCP emulator (debug only). Phone and PC must be on same Wi-Fi. */
     fun onConnectToEmulator() {
         lastConnectionType = ConnectionType.TCP
-        viewModelScope.launch {
+        scanJob = viewModelScope.launch {
             _state.value = ScanState.Connecting
             val result = obdConnectionManager.connectTcp(EMULATOR_HOST, EMULATOR_PORT)
             if (result.isFailure) {

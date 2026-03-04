@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
@@ -64,7 +63,6 @@ import com.driverai.b2c.viewmodel.ScannerViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScannerScreen(
-    onSignOut: () -> Unit = {},
     onUpgradeClick: () -> Unit = {},
     viewModel: ScannerViewModel = hiltViewModel(),
 ) {
@@ -78,16 +76,7 @@ fun ScannerScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("OBD Scanner") },
-                actions = {
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.Default.Logout, contentDescription = "Sign out")
-                    }
-                }
-            )
-        }
+        topBar = { TopAppBar(title = { Text("OBD Scanner") }) }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -113,18 +102,20 @@ fun ScannerScreen(
                     onDeviceClick = { viewModel.onDeviceSelected(it.address) },
                     onCancel = { viewModel.onCancelSelection() }
                 )
-                is ScanState.Connecting -> LoadingContent("Connecting to adapter…")
-                is ScanState.Scanning -> LoadingContent("Reading OBD data…")
+                is ScanState.Connecting -> LoadingContent("Connecting to adapter…", onCancel = { viewModel.onCancel() })
+                is ScanState.Scanning -> LoadingContent("Reading OBD data…", onCancel = { viewModel.onCancel() })
                 is ScanState.Success -> OBDResultContent(
                     result = s.result,
                     onAnalyze = { viewModel.onAnalyzeWithAI() },
                     onScanAgain = { viewModel.onScanAgain() },
+                    onNewScan = { viewModel.onRetry() },
                 )
                 is ScanState.Analyzing -> LoadingContent("Analyzing with AI…")
                 is ScanState.AnalysisReady -> AnalysisResultContent(
                     analysis = s.analysis,
                     isPremium = s.analysis.isPremium,
                     onScanAgain = { viewModel.onScanAgain() },
+                    onNewScan = { viewModel.onRetry() },
                     onUpgradeClick = onUpgradeClick,
                 )
                 is ScanState.Error -> ErrorContent(
@@ -143,6 +134,7 @@ private fun OBDResultContent(
     result: ObdScanResult,
     onAnalyze: () -> Unit,
     onScanAgain: () -> Unit,
+    onNewScan: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -182,6 +174,12 @@ private fun OBDResultContent(
                 ) {
                     Text("Scan Again")
                 }
+                OutlinedButton(
+                    onClick = onNewScan,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Disconnect")
+                }
             }
         }
     }
@@ -194,6 +192,7 @@ private fun AnalysisResultContent(
     analysis: ScanAnalyzeResponse,
     isPremium: Boolean,
     onScanAgain: () -> Unit,
+    onNewScan: () -> Unit,
     onUpgradeClick: () -> Unit = {},
 ) {
     LazyColumn(
@@ -204,11 +203,19 @@ private fun AnalysisResultContent(
         item { OverallRiskCard(analysis) }
         items(analysis.codes) { code -> AnalysisCodeCard(code, isPremium = isPremium, onUpgradeClick = onUpgradeClick) }
         item {
-            OutlinedButton(
-                onClick = onScanAgain,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Scan Again")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onScanAgain,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Scan Again")
+                }
+                OutlinedButton(
+                    onClick = onNewScan,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Disconnect")
+                }
             }
         }
     }
@@ -370,7 +377,7 @@ private fun IdleContent(
 }
 
 @Composable
-private fun LoadingContent(message: String) {
+private fun LoadingContent(message: String, onCancel: (() -> Unit)? = null) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -379,6 +386,10 @@ private fun LoadingContent(message: String) {
         CircularProgressIndicator()
         Spacer(Modifier.height(16.dp))
         Text(message, style = MaterialTheme.typography.bodyLarge)
+        if (onCancel != null) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(onClick = onCancel) { Text("Cancel") }
+        }
     }
 }
 

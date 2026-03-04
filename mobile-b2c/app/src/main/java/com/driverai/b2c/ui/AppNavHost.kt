@@ -167,7 +167,7 @@ private fun MainShell(
         Box(modifier = Modifier.padding(paddingValues)) {
             NavHost(navController = bottomNavController, startDestination = ROUTE_SCANNER) {
                 composable(ROUTE_SCANNER) {
-                    ScannerScreen(onSignOut = onSignOut, onUpgradeClick = onUpgradeClick)
+                    ScannerScreen(onUpgradeClick = onUpgradeClick)
                 }
                 composable(ROUTE_VEHICLES) {
                     VehicleScreen()
