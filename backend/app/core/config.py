@@ -36,10 +36,10 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
 
     # App URLs
-    B2C_SUCCESS_URL: str = "https://app.driverai.com/payment/success"
-    B2C_CANCEL_URL: str = "https://app.driverai.com/payment/cancel"
-    B2B_SUCCESS_URL: str = "https://app.shopai.com/billing/success"
-    B2B_CANCEL_URL: str = "https://app.shopai.com/billing/cancel"
+    B2C_SUCCESS_URL: str = "https://drive.avyrox.io/payment/success"
+    B2C_CANCEL_URL: str = "https://drive.avyrox.io/payment/cancel"
+    B2B_SUCCESS_URL: str = "https://cloud.avyrox.io/billing/success"
+    B2B_CANCEL_URL: str = "https://cloud.avyrox.io/billing/cancel"
 
 
 settings = Settings()

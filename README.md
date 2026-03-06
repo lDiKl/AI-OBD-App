@@ -6,16 +6,16 @@ Two interconnected automotive AI applications on a shared backend.
 
 | App | Platform | Audience | Folder |
 |-----|----------|----------|--------|
-| DriverAI (B2C) | Android (Kotlin) | Car owners | `mobile-b2c/` |
-| ShopAI Mobile (B2B) | Android (Kotlin) | Mechanics | `mobile-b2b/` |
-| ShopAI Web (B2B) | React + TypeScript | Auto service dashboard | `web/` |
-| Backend API | FastAPI (Python) | Shared for all apps | `backend/` |
+| Avyrox Drive (B2C) | Android (Kotlin) | Car owners | `avyrox-drive/` |
+| Avyrox Service (B2B) | Android (Kotlin) | Mechanics | `avyrox-service/` |
+| Avyrox Cloud (B2B) | React + TypeScript | Auto service dashboard | `web/` |
+| Avyrox API | FastAPI (Python) | Shared for all apps | `backend/` |
 
 ## Structure
 
 ```
-├── mobile-b2c/   Android B2C — OBD scan, AI explanation, risk assessment
-├── mobile-b2b/   Android B2B — case management, on-site diagnostics
+├── avyrox-drive/ Android B2C — OBD scan, AI explanation, risk assessment (Avyrox Drive)
+├── avyrox-service/ Android B2B — case management, on-site diagnostics
 ├── web/          React B2B SaaS — full dashboard, reports, estimates
 ├── backend/      FastAPI — shared REST API, PostgreSQL, Redis, AI layer
 ├── shared/       OpenAPI spec, shared data schemas
@@ -25,7 +25,7 @@ Two interconnected automotive AI applications on a shared backend.
 ## Getting Started
 
 - Backend: see `backend/README.md`
-- Mobile: open `mobile-b2c/` or `mobile-b2b/` in Android Studio
+- Mobile: open `avyrox-drive/` or `avyrox-service/` in Android Studio
 - Web: see `web/README.md`
 
 ## Docs

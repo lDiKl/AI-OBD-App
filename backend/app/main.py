@@ -11,7 +11,7 @@ from app.api.v1.router import api_router
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="AI OBD Ecosystem API",
+    title="Avyrox API",
     version="1.0.0",
     docs_url="/docs" if settings.DEBUG else None,
 )

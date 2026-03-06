@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ai-obd-backend"
+name = "avyrox-api"
 version = "0.1.0"
-description = "AI OBD Ecosystem — Shared Backend API"
+description = "Avyrox — Intelligent Automotive Service Platform API"
 requires-python = ">=3.11"
 dependencies = [
     # Web framework

@@ -247,7 +247,7 @@ export default function LeadsPage() {
       {leads && leads.length === 0 && (
         <div className="py-16 text-center text-gray-400">
           <p className="text-lg">No leads yet</p>
-          <p className="text-sm mt-1">When drivers send their diagnostics to your shop, they'll appear here.</p>
+          <p className="text-sm mt-1">When drivers send their diagnostics to your service, they'll appear here.</p>
         </div>
       )}
 

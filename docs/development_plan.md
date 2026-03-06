@@ -14,13 +14,13 @@
 | Компонент | Статус |
 |-----------|--------|
 | Monorepo scaffold | ✅ Готово (commit a4f4c62) |
-| mobile-b2c — OBD Bluetooth слой | ✅ Готово |
-| mobile-b2c — Firebase Auth + Navigation | ✅ Готово, вход/выход работает |
-| mobile-b2c — Vehicle Management | ✅ Room + API sync + offline fallback |
-| mobile-b2c — OBD → AI Analysis | ✅ Scan → backend → AI результат на экране |
-| mobile-b2c — Scan History | ✅ Room persistence + History + Detail экраны |
-| mobile-b2b — scaffold | ✅ Scaffold создан, компилируется |
-| mobile-b2b — Phase 5 | ✅ Firebase Auth + OBD + Room + DiagnosticCase + Scan + Profile |
+| avyrox-drive — OBD Bluetooth слой | ✅ Готово |
+| avyrox-drive — Firebase Auth + Navigation | ✅ Готово, вход/выход работает |
+| avyrox-drive — Vehicle Management | ✅ Room + API sync + offline fallback |
+| avyrox-drive — OBD → AI Analysis | ✅ Scan → backend → AI результат на экране |
+| avyrox-drive — Scan History | ✅ Room persistence + History + Detail экраны |
+| avyrox-service — scaffold | ✅ Scaffold создан, компилируется |
+| avyrox-service — Phase 5 | ✅ Firebase Auth + OBD + Room + DiagnosticCase + Scan + Profile |
 | Phase 6 Integration Bridge | ✅ B2C → Shops → Lead → Quote → B2C видит ответ. B2B Web + Android. |
 | backend/ Phase 1 | ✅ Rule Engine, Vehicles CRUD, работает в Docker |
 | backend/ Phase 2.1 AI Layer | ✅ Claude Haiku + Redis cache + fallback |
@@ -102,7 +102,7 @@
 - [x] Concurrent AI: все коды сессии обрабатываются параллельно через `asyncio.gather`
 - [ ] Тест: P0420 + Toyota Camry 2018 → AI объяснение (нужен ANTHROPIC_API_KEY в .env)
 
-### 2.2 Firebase Auth в mobile-b2c
+### 2.2 Firebase Auth в avyrox-drive
 
 - [x] Добавить `google-services.json` (получить из Firebase Console)
 - [x] Раскомментировать Firebase в `app/build.gradle.kts`
@@ -114,7 +114,7 @@
 - [x] `AppNavHost` — навигация Login → Scanner (автологин если сессия активна)
 - [x] Кнопка Sign Out в TopAppBar ScannerScreen
 
-### 2.3 Vehicle Management в mobile-b2c
+### 2.3 Vehicle Management в avyrox-drive
 
 - [x] Room entity `VehicleEntity` + DAO + `AppDatabase` + `DatabaseModule`
 - [x] Retrofit `VehicleApiService` → `POST/GET/DELETE /api/v1/b2c/vehicles`
@@ -237,7 +237,7 @@
 - [x] Проверка `subscription_status` перед показом premium контента (`is_premium` в scan response)
 - [x] Экран "Upgrade" (`UpgradeScreen`): описание планов + кнопка
 - [x] Нажатие → открыть Stripe Checkout в браузере (`CustomTabsIntent`)
-- [x] Deep link `driverai://payment/success` → возврат в приложение (`PaymentSuccessScreen`)
+- [x] Deep link `avyroxdrive://payment/success` → возврат в приложение (`PaymentSuccessScreen`)
 - [x] `ProfileScreen` — email, статус подписки, upgrade кнопка, sign out
 - [x] Free tier: только код + severity (без AI объяснения)
 - [x] Premium tier: полный AI анализ (при наличии Anthropic кредитов)
@@ -261,7 +261,7 @@
 > **Milestone:** Механик со смартфоном сканирует OBD → создаёт кейс → видит professional AI анализ
 
 - [x] Firebase Auth B2B (ShopUser тип — отдельный flow от B2C)
-- [x] OBD слой — переиспользовать `data/obd/` из mobile-b2c (копия с package rename)
+- [x] OBD слой — переиспользовать `data/obd/` из avyrox-drive (копия с package rename)
 - [x] `DiagnosticCaseRepository` — offline-first: Room → API + syncPending
 - [x] Экран Scanner: TCP/BT connect → scan → VehicleInfoForm → AI analyze → Done
 - [x] Показать AI анализ (B2B формат): ranked causes + checklist + labor estimate

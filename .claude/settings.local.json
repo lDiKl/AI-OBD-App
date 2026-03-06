@@ -10,7 +10,28 @@
       "Bash(\"c:/Users/dmytr/Projects/AI OBD:*)",
       "Bash(__NEW_LINE_e95a3f4d2ea4df6d__ cat)",
       "Bash(npm install)",
-      "Bash(docker compose restart api)"
+      "Bash(docker compose restart api)",
+      "Bash(xargs grep -l \"com\\\\.driverai\\\\.b2c\")",
+      "Bash(xargs grep -l \"com\\\\.shopai\\\\.b2b\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2c\\\\app\\\\src\\\\main\\\\java'' -Filter ''*.kt'' -Recurse | ForEach-Object { \\(Get-Content $_FullName\\) -replace ''com\\\\.driverai\\\\.b2c'', ''com.avyrox.drive'' | Set-Content $_FullName }; Write-Host ''B2C done''\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2b\\\\app\\\\src\\\\main\\\\java'' -Filter ''*.kt'' -Recurse | ForEach-Object { \\(Get-Content $_FullName\\) -replace ''com\\\\.shopai\\\\.b2b'', ''com.avyrox.service'' | Set-Content $_FullName }; Write-Host ''B2B done''\")",
+      "Bash(powershell -Command \"& { Get-ChildItem -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2c\\\\app\\\\src\\\\main\\\\java'' -Filter ''*.kt'' -Recurse | ForEach-Object { $f = $_.FullName; \\(Get-Content $f -Raw\\) -replace ''com\\\\.driverai\\\\.b2c'', ''com.avyrox.drive'' | Set-Content $f -NoNewline }; ''B2C done'' }\")",
+      "Bash(powershell -Command \"& { Get-ChildItem -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2b\\\\app\\\\src\\\\main\\\\java'' -Filter ''*.kt'' -Recurse | ForEach-Object { $f = $_.FullName; \\(Get-Content $f -Raw\\) -replace ''com\\\\.shopai\\\\.b2b'', ''com.avyrox.service'' | Set-Content $f -NoNewline }; ''B2B done'' }\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\rename_packages.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\rename_b2c.ps1\")",
+      "Bash(powershell -Command \"Test-Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2c''; Test-Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\avyrox-drive''\")",
+      "Bash(powershell -Command \"Rename-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2c'' -NewName ''avyrox-drive''; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Test-Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\avyrox-drive''; ls ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\avyrox-drive\\\\app\\\\src\\\\main\\\\java\\\\com\\\\avyrox\\\\drive'' | Select-Object -First 5\")",
+      "Bash(powershell -Command \"ls ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\avyrox-drive\\\\app\\\\src\\\\main\\\\java\\\\com\\\\avyrox\\\\drive'' -Recurse | Where-Object { !$_PSIsContainer } | Select-Object -First 10 | ForEach-Object { $_FullName.Split\\(''\\\\com\\\\avyrox\\\\drive\\\\''\\)[1] }\")",
+      "Bash(powershell -Command \"Remove-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\avyrox-drive\\\\app\\\\src\\\\main\\\\java\\\\com\\\\avyrox\\\\drive\\\\repository'' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\rename_b2c.ps1'' -Force; Write-Host ''Cleaned''\")",
+      "Bash(powershell -Command \":*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\rename_b2b.ps1\")",
+      "Bash(powershell -Command \"Rename-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2b\\\\app\\\\src\\\\main\\\\java\\\\com\\\\avyrox\\\\service\\\\ShopAIApp.kt'' -NewName ''AvyroxServiceApp.kt''; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Rename-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2b\\\\app\\\\src\\\\main\\\\java\\\\com\\\\avyrox\\\\service\\\\ui\\\\theme\\\\ShopAITheme.kt'' -NewName ''AvyroxServiceTheme.kt''; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Rename-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\mobile-b2b'' -NewName ''avyrox-service''; Write-Host ''Done''\")",
+      "Bash(powershell -Command \"Get-Process | Where-Object { $_MainWindowTitle -like ''*b2b*'' -or $_Name -like ''*studio*'' -or $_Name -like ''*java*'' -or $_Name -like ''*gradle*'' } | Select-Object Name, Id, MainWindowTitle\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\rename_b2b_folder.ps1\")",
+      "Bash(powershell -Command \"Rename-Item -Path ''c:\\\\Users\\\\dmytr\\\\Projects\\\\AI OBD App\\\\backend\\\\app\\\\api\\\\v1\\\\b2c\\\\shops.py'' -NewName ''services.py''; Write-Host ''Done''\")"
     ]
   }
 }

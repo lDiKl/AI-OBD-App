@@ -21,7 +21,7 @@ export default function Layout() {
       <aside className="w-60 bg-white border-r border-gray-200 flex flex-col">
         {/* Logo */}
         <div className="px-6 py-5 border-b border-gray-100">
-          <h1 className="text-xl font-bold text-blue-600">ShopAI</h1>
+          <h1 className="text-xl font-bold text-blue-600">Avyrox Cloud</h1>
           {shop && (
             <p className="text-xs text-gray-500 mt-1 truncate">{shop.name}</p>
           )}

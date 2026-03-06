@@ -43,8 +43,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">ShopAI</h1>
-        <p className="text-sm text-gray-500 mb-6">Auto Service Assistant</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">Avyrox Cloud</h1>
+        <p className="text-sm text-gray-500 mb-6">Auto Service Platform</p>
 
         <h2 className="text-lg font-semibold text-gray-800 mb-4">
           {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
